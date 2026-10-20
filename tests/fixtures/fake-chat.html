@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="es">
+<head><meta charset="utf-8"><title>Chat de prueba</title></head>
+<body>
+  <!-- Página LOCAL que imita la estructura de un chat (no es ChatGPT). Sirve para probar la mecánica del conector. -->
+  <nav><a href="https://chatgpt.com/c/viejo">Conversación anterior</a> <a href="https://www.infobae.com/nav">Link de navegación</a></nav>
+  <main id="thread">
+    <div data-message-author-role="assistant" class="old"><div class="markdown"><p>Respuesta VIEJA de otra conversación con <a href="https://viejo.com">viejo.com</a></p></div></div>
+  </main>
+  <button data-testid="login-button" id="login" style="display:none">Iniciar sesión</button>
+  <div id="composer-wrap">
+    <div id="prompt-textarea" contenteditable="true" style="min-height:40px;border:1px solid #ccc"></div>
+    <button data-testid="send-button" id="send">Enviar</button>
+  </div>
+  <button data-testid="model-switcher-dropdown-button">GPT-Prueba</button>
+  <script>
+    const mode = new URLSearchParams(location.search).get("mode") || "ok";
+    const thread = document.getElementById("thread");
+    document.getElementById("thread").querySelector(".old").remove(); // conversación nueva: sin mensajes previos
+    if (mode === "login") {
+      document.getElementById("composer-wrap").remove();
+      document.body.insertAdjacentHTML("beforeend", "<div>Log in or sign up to continue</div>");
+    }
+    if (mode === "captcha") {
+      document.title = "Just a moment...";
+      document.getElementById("composer-wrap").remove();
+      document.body.insertAdjacentHTML("beforeend", '<form id="challenge-form">Verify you are human</form>');
+    }
+    if (mode === "public") document.getElementById("login").style.display = "block";
+    function send() {
+      const text = document.getElementById("prompt-textarea").innerText;
+      thread.insertAdjacentHTML("beforeend", '<div data-message-author-role="user"><p>' + text.replace(/</g, "&lt;") + "</p></div>");
+      document.getElementById("prompt-textarea").innerText = "";
+      if (mode === "limit") {
+        setTimeout(() => document.body.insertAdjacentHTML("beforeend", "<div>You've reached your limit. Try again later.</div>"), 300);
+        return;
+      }
+      const msg = document.createElement("div");
+      msg.setAttribute("data-message-author-role", "assistant");
+      msg.innerHTML = '<details data-testid="reasoning"><summary>Pensando…</summary>Razonamiento interno que NO es la respuesta</details><div class="markdown"></div>';
+      thread.appendChild(msg);
+      const stop = document.createElement("button");
+      stop.setAttribute("data-testid", "stop-button");
+      stop.textContent = "Detener";
+      document.body.appendChild(stop);
+      const parts = [
+        "<p>Estas son opciones para «" + text.replace(/</g, "&lt;") + "»:</p>",
+        "<ol><li><strong>Andes CRM</strong>: líder (<a href=\"https://www.g2.com/andes?utm_source=chatgpt.com\">G2</a>)</li>",
+        "<li><strong>Pampa CRM</strong>: <a href=\"https://pampacrm.com.ar/precios?utm_source=chatgpt.com&ref=1\">precios</a></li>",
+        "<li>Ceibo Soft</li></ol>",
+        "<p>Más info en <a href=\"https://chatgpt.com/share/xyz\">este chat</a>.</p>",
+      ];
+      let i = 0;
+      const md = msg.querySelector(".markdown");
+      const tick = setInterval(() => {
+        if (mode === "slow") { md.insertAdjacentHTML("beforeend", "<p>sigue…" + i++ + "</p>"); return; }
+        if (i < parts.length) {
+          // reconstruimos el HTML completo como un stream
+          md.innerHTML = parts.slice(0, ++i).join("").replace(/<ol>(.*)$/s, (m) => (m.includes("</ol>") ? m : m + "</ol>"));
+          return;
+        }
+        clearInterval(tick);
+        stop.remove();
+        msg.insertAdjacentHTML("beforeend", '<button data-testid="copy-turn-action-button">Copiar</button>');
+      }, 350);
+    }
+    const btn = document.getElementById("send");
+    if (btn) btn.addEventListener("click", send);
+  </script>
+</body>
+</html>

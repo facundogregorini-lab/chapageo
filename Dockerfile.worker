@@ -1,0 +1,23 @@
+# Worker de recolección (separado de la web). Imagen oficial de Playwright con Chromium.
+# Construir:  docker build -f Dockerfile.worker -t chapageo-worker .
+# Correr:     docker run --env-file .env.worker -v chapageo-sessions:/app/.worker-sessions chapageo-worker
+FROM mcr.microsoft.com/playwright:v1.56.1-noble
+
+WORKDIR /app
+ENV NODE_ENV=production \
+    PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 \
+    WORKER_SESSION_DIR=/app/.worker-sessions \
+    WORKER_HEADLESS=1
+
+COPY package.json package-lock.json ./
+RUN npm ci --include=dev --ignore-scripts
+
+COPY lib ./lib
+COPY worker ./worker
+COPY scripts ./scripts
+COPY tsconfig.json ./
+
+# Las sesiones del navegador viven en un volumen: nunca dentro de la imagen.
+VOLUME ["/app/.worker-sessions"]
+
+CMD ["npx", "tsx", "worker/index.ts"]

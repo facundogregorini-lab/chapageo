@@ -6,3 +6,10 @@ data/*.db*
 *.tsbuildinfo
 next-env.d.ts
 .vercel
+
+# Worker: sesiones de navegador, cookies y evidencia de pruebas. Nunca a Git.
+.worker-sessions/
+probe-output/
+data/
+*.cookies.json
+storage-state*.json

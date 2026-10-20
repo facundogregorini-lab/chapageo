@@ -2,6 +2,7 @@
 // tiene la información básica que los motores necesitan para entender la marca.
 
 import { cleanDomain } from "./analyze";
+import { safeFetch } from "./safe-fetch";
 
 export const AI_BOTS: { agent: string; owner: string; purpose: string }[] = [
   { agent: "OAI-SearchBot", owner: "OpenAI", purpose: "Búsqueda en ChatGPT" },
@@ -69,20 +70,12 @@ export function botStatus(groups: Group[], agent: string): BotStatus {
 }
 
 async function get(url: string, timeoutMs = 8000): Promise<{ status: number; text: string; finalUrl: string } | null> {
-  const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
-    const res = await fetch(url, {
-      signal: ctrl.signal,
-      redirect: "follow",
-      headers: { "user-agent": "Mozilla/5.0 (compatible; ChapaGEO-Auditor/0.1; +https://chapageo.lat)" },
-    });
-    const text = (await res.text()).slice(0, 800_000);
-    return { status: res.status, text, finalUrl: res.url };
+    // Descarga protegida contra SSRF (valida DNS e IPs en cada redirect, con límites de tamaño y tiempo).
+    const res = await safeFetch(url, { timeoutMs, maxBytes: 800_000 });
+    return { status: res.status, text: res.body, finalUrl: res.url };
   } catch {
     return null;
-  } finally {
-    clearTimeout(t);
   }
 }
 

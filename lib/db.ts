@@ -1,149 +1,8 @@
 import { createClient, type Client, type InArgs, type Row } from "@libsql/client";
 import { mkdirSync } from "node:fs";
 import { randomBytes } from "node:crypto";
+import { migrate } from "./migrations";
 
-const SCHEMA = `
-CREATE TABLE IF NOT EXISTS workspaces (
-  id TEXT PRIMARY KEY,
-  name TEXT NOT NULL,
-  plan TEXT NOT NULL DEFAULT 'prueba',
-  brand_color TEXT NOT NULL DEFAULT '#1f6feb',
-  logo_url TEXT,
-  report_footer TEXT,
-  created_at TEXT NOT NULL
-);
-CREATE TABLE IF NOT EXISTS users (
-  id TEXT PRIMARY KEY,
-  email TEXT NOT NULL UNIQUE,
-  name TEXT,
-  password_hash TEXT NOT NULL,
-  workspace_id TEXT NOT NULL REFERENCES workspaces(id),
-  created_at TEXT NOT NULL
-);
-CREATE TABLE IF NOT EXISTS brands (
-  id TEXT PRIMARY KEY,
-  workspace_id TEXT NOT NULL REFERENCES workspaces(id),
-  name TEXT NOT NULL,
-  domain TEXT NOT NULL,
-  description TEXT,
-  category TEXT,
-  country TEXT NOT NULL DEFAULT 'AR',
-  city TEXT,
-  language TEXT NOT NULL DEFAULT 'es',
-  aliases TEXT NOT NULL DEFAULT '[]',
-  competitors TEXT NOT NULL DEFAULT '[]',
-  engines TEXT NOT NULL DEFAULT '["chatgpt","gemini"]',
-  repetitions INTEGER NOT NULL DEFAULT 3,
-  schedule TEXT NOT NULL DEFAULT 'weekly',
-  share_token TEXT NOT NULL,
-  last_run_at TEXT,
-  created_at TEXT NOT NULL
-);
-CREATE TABLE IF NOT EXISTS prompts (
-  id TEXT PRIMARY KEY,
-  brand_id TEXT NOT NULL REFERENCES brands(id) ON DELETE CASCADE,
-  text TEXT NOT NULL,
-  kind TEXT NOT NULL DEFAULT 'sin_marca',
-  intent TEXT NOT NULL DEFAULT 'comercial',
-  topic TEXT,
-  active INTEGER NOT NULL DEFAULT 1,
-  created_at TEXT NOT NULL
-);
-CREATE TABLE IF NOT EXISTS runs (
-  id TEXT PRIMARY KEY,
-  brand_id TEXT NOT NULL REFERENCES brands(id) ON DELETE CASCADE,
-  status TEXT NOT NULL DEFAULT 'queued',
-  trigger TEXT NOT NULL DEFAULT 'manual',
-  total INTEGER NOT NULL DEFAULT 0,
-  done_count INTEGER NOT NULL DEFAULT 0,
-  failed_count INTEGER NOT NULL DEFAULT 0,
-  simulated INTEGER NOT NULL DEFAULT 0,
-  cost_usd REAL NOT NULL DEFAULT 0,
-  created_at TEXT NOT NULL,
-  finished_at TEXT
-);
-CREATE TABLE IF NOT EXISTS responses (
-  id TEXT PRIMARY KEY,
-  run_id TEXT NOT NULL REFERENCES runs(id) ON DELETE CASCADE,
-  brand_id TEXT NOT NULL,
-  prompt_id TEXT NOT NULL,
-  prompt_text TEXT NOT NULL,
-  prompt_kind TEXT NOT NULL,
-  engine TEXT NOT NULL,
-  model TEXT,
-  repetition INTEGER NOT NULL DEFAULT 1,
-  status TEXT NOT NULL DEFAULT 'pending',
-  claimed_at TEXT,
-  error TEXT,
-  answer TEXT,
-  sources TEXT NOT NULL DEFAULT '[]',
-  mentions TEXT NOT NULL DEFAULT '[]',
-  other_brands TEXT NOT NULL DEFAULT '[]',
-  brand_mentioned INTEGER NOT NULL DEFAULT 0,
-  brand_position INTEGER,
-  own_cited INTEGER NOT NULL DEFAULT 0,
-  sentiment TEXT,
-  sentiment_score REAL,
-  cost_usd REAL NOT NULL DEFAULT 0,
-  latency_ms INTEGER,
-  country TEXT,
-  language TEXT,
-  simulated INTEGER NOT NULL DEFAULT 0,
-  created_at TEXT NOT NULL,
-  executed_at TEXT
-);
-CREATE INDEX IF NOT EXISTS idx_responses_run ON responses(run_id, status);
-CREATE INDEX IF NOT EXISTS idx_responses_brand ON responses(brand_id, created_at);
-CREATE TABLE IF NOT EXISTS actions (
-  id TEXT PRIMARY KEY,
-  brand_id TEXT NOT NULL REFERENCES brands(id) ON DELETE CASCADE,
-  fingerprint TEXT NOT NULL,
-  kind TEXT NOT NULL,
-  title TEXT NOT NULL,
-  detail TEXT NOT NULL,
-  priority INTEGER NOT NULL DEFAULT 2,
-  evidence TEXT NOT NULL DEFAULT '{}',
-  status TEXT NOT NULL DEFAULT 'pendiente',
-  owner TEXT,
-  draft TEXT,
-  created_at TEXT NOT NULL,
-  updated_at TEXT NOT NULL,
-  UNIQUE (brand_id, fingerprint)
-);
-CREATE TABLE IF NOT EXISTS audits (
-  id TEXT PRIMARY KEY,
-  workspace_id TEXT,
-  brand_id TEXT,
-  kind TEXT NOT NULL,
-  domain TEXT NOT NULL,
-  share_token TEXT NOT NULL,
-  result TEXT NOT NULL,
-  created_at TEXT NOT NULL
-);
-CREATE TABLE IF NOT EXISTS leads (
-  id TEXT PRIMARY KEY,
-  email TEXT NOT NULL,
-  name TEXT,
-  company TEXT,
-  phone TEXT,
-  domain TEXT,
-  source TEXT NOT NULL,
-  offer TEXT,
-  note TEXT,
-  audit_id TEXT,
-  stage TEXT NOT NULL DEFAULT 'nuevo',
-  amount_usd REAL,
-  created_at TEXT NOT NULL
-);
-CREATE TABLE IF NOT EXISTS events (
-  id TEXT PRIMARY KEY,
-  name TEXT NOT NULL,
-  props TEXT NOT NULL DEFAULT '{}',
-  visitor TEXT,
-  created_at TEXT NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_events_name ON events(name, created_at);
-`;
 
 // Vercel Storage (Turso) crea TURSO_DATABASE_URL y TURSO_AUTH_TOKEN; aceptamos los dos nombres.
 const DB_URL = process.env.DATABASE_URL || process.env.TURSO_DATABASE_URL;
@@ -162,9 +21,40 @@ function databaseUrl(): string {
   return "file:data/chapageo.db";
 }
 
+const isBusy = (e: unknown) => /SQLITE_BUSY|database is locked/i.test(String((e as { code?: string })?.code ?? "") + String((e as Error)?.message ?? ""));
+
+/**
+ * Con SQLite en archivo, la web y el worker (u otros workers) comparten la base desde procesos
+ * distintos: una escritura puede encontrar la base ocupada un instante. Reintentamos con espera
+ * corta en vez de fallar. Turso/libSQL remoto no lo necesita.
+ */
+function withBusyRetry(c: Client): Client {
+  const retry = async <T>(fn: () => Promise<T>): Promise<T> => {
+    for (let i = 0; ; i++) {
+      try {
+        return await fn();
+      } catch (e) {
+        if (!isBusy(e) || i >= 40) throw e;
+        await new Promise((r) => setTimeout(r, 25 + Math.random() * 100));
+      }
+    }
+  };
+  const execute = c.execute.bind(c) as (...a: unknown[]) => Promise<unknown>;
+  const batch = c.batch.bind(c) as (...a: unknown[]) => Promise<unknown>;
+  return Object.assign(c, {
+    execute: (...a: unknown[]) => retry(() => execute(...a)),
+    batch: (...a: unknown[]) => retry(() => batch(...a)),
+  }) as Client;
+}
+
 function getClient(): Client {
   if (!client) {
-    client = createClient({ url: databaseUrl(), authToken: DB_TOKEN });
+    const url = databaseUrl();
+    client = createClient({ url, authToken: DB_TOKEN });
+    if (url.startsWith("file:")) {
+      client = withBusyRetry(client);
+      void client.execute("PRAGMA journal_mode = WAL").catch(() => undefined);
+    }
   }
   return client;
 }
@@ -184,7 +74,7 @@ async function maybeSeed() {
 export async function db(): Promise<Client> {
   const c = getClient();
   if (!schemaReady) {
-    schemaReady = c.executeMultiple(SCHEMA).catch((e) => {
+    schemaReady = migrate(c).then(() => undefined).catch((e) => {
       schemaReady = null;
       throw e;
     });

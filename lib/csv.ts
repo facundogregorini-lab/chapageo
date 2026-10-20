@@ -1,24 +1,34 @@
-import { brandMetrics } from "./metrics";
-import type { Brand } from "./types";
+import { collectorShort } from "./collectors/registry";
+import { isValid } from "./metrics";
+import type { Brand, ResponseRow, Run } from "./types";
 
-function csvCell(v: unknown) {
-  const s = v == null ? "" : String(v);
-  return /[",\n;]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+/** Escapa para CSV y neutraliza fórmulas (=, +, -, @): las respuestas son contenido externo. */
+export function csvCell(v: unknown) {
+  let s = v == null ? "" : String(v);
+  if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;
+  return /[",\n;\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
-export async function csvForBrand(brand: Brand) {
-  const m = await brandMetrics(brand);
-  const header = ["fecha_utc", "motor", "modelo", "simulado", "pregunta", "tipo", "repeticion", "estado", "menciona_marca", "posicion", "cita_dominio", "sentimiento", "marcas_mencionadas", "fuentes", "costo_usd", "respuesta"];
+export function csvForRun(brand: Brand, run: Run, jobs: ResponseRow[]) {
+  const header = [
+    "analisis_id", "ejecucion_id", "fecha_captura_utc", "motor", "metodo", "tipo_pregunta", "pregunta", "repeticion", "estado", "valida",
+    "intentos", "error", "pais_solicitado", "pais_ejecucion", "verificacion_ubicacion", "idioma", "sesion", "modo_busqueda", "modelo_visible",
+    "menciona_marca", "orden_mencion_marca", "puesto_lista_marca", "enlaza_dominio_cliente", "marcas_detectadas", "fuentes", "respuesta",
+  ];
   const lines = [header.join(",")];
-  for (const r of m.responses) {
+  for (const r of jobs) {
+    const own = r.mentions.find((m) => m.own);
     lines.push(
       [
-        r.executed_at ?? r.created_at, r.engine, r.model, r.simulated ? "si" : "no", r.prompt_text, r.prompt_kind, r.repetition, r.status,
-        r.brand_mentioned ? "si" : "no", r.brand_position ?? "", r.own_cited ? "si" : "no", r.sentiment ?? "",
-        r.mentions.map((x) => `${x.position}. ${x.name}`).join(" | "), r.sources.map((s) => s.url).join(" | "), r.cost_usd.toFixed(4), r.answer ?? r.error ?? "",
-      ].map(csvCell).join(","),
+        run.id, r.id, r.executed_at ?? "", collectorShort(r.collector), r.collection_method, r.prompt_category, r.prompt_text, r.repetition, r.status,
+        isValid(r) ? "si" : "no", r.attempts, r.error ? `${r.error_code ?? ""} ${r.error}`.trim() : "", r.country ?? brand.country, r.observed_country ?? "",
+        r.location_verification ?? "", r.language ?? "", r.session_type ?? "", r.search_mode ?? "", r.model ?? "",
+        isValid(r) ? (r.brand_mentioned ? "si" : "no") : "", own?.position ?? "", own?.explicitRank ?? "", isValid(r) ? (r.own_cited ? "si" : "no") : "",
+        r.mentions.map((x) => `${x.position}. ${x.name}`).join(" | "), r.sources.map((s) => s.url).join(" | "), r.answer ?? "",
+      ]
+        .map(csvCell)
+        .join(","),
     );
   }
   return "﻿" + lines.join("\n");
 }
-

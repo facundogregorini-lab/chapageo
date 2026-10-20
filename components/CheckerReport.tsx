@@ -17,9 +17,18 @@ export function CheckerReport({ r }: { r: CheckerResult }) {
     <div className="space-y-8">
       {r.simulated ? (
         <div className="rounded-xl border border-sol/40 bg-sol-50 px-4 py-3 text-sm text-[#6b4700]">
-          <strong>Resultado simulado.</strong> Este servidor no tiene claves de IA configuradas; las respuestas son de demostración.
+          <strong>Resultado simulado.</strong> Este chequeo es antiguo y usó respuestas de demostración.
         </div>
-      ) : null}
+      ) : !r.engine ? (
+        <div className="rounded-xl border border-line bg-paper px-4 py-3 text-sm text-mute">
+          Este chequeo incluye solo la revisión técnica: el servidor no tiene un motor de IA configurado para la vista previa.
+        </div>
+      ) : (
+        <div className="rounded-xl border border-line bg-paper px-4 py-3 text-sm text-mute">
+          Vista previa con la <strong>API oficial</strong> de {r.engineLabel.replace(" (API oficial)", "")}: puede diferir de lo que ve una persona en la app.
+          El análisis completo captura la interfaz web y registra las condiciones de cada consulta.
+        </div>
+      )}
       <div className="grid gap-4 md:grid-cols-[1.2fr_1fr_1fr]">
         <div className="card p-6">
           <div className="text-xs font-semibold text-mute">Puntaje de visibilidad</div>

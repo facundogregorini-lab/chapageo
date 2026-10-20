@@ -90,21 +90,47 @@ function snippetAround(original: string, index: number, radius = 110): string {
   return (start > 0 ? "…" : "") + original.slice(start, end).replace(/\s+/g, " ").trim() + (end < original.length ? "…" : "");
 }
 
+/** Número de ítem de lista numerada por línea ("1. X", "2) X", "### 3. X"). null si la línea no es un ítem. */
+function numberedLines(norm: string): { start: number; end: number; n: number | null }[] {
+  const out: { start: number; end: number; n: number | null }[] = [];
+  let pos = 0;
+  for (const line of norm.split("\n")) {
+    const m = line.match(/^\s*(?:#{1,4}\s*)?(?:\*\*)?(\d{1,2})[.)]\s+/);
+    out.push({ start: pos, end: pos + line.length, n: m ? Number(m[1]) : null });
+    pos += line.length + 1;
+  }
+  return out;
+}
+
 export function detectMentions(answer: string, tracked: Tracked[]): Mention[] {
   const norm = normalize(answer);
-  const found: { t: Tracked; first: number; count: number }[] = [];
+  const lines = numberedLines(norm);
+  // Solo hablamos de "ranking explícito" si la respuesta tiene una lista numerada (2+ ítems).
+  const hasRanking = lines.filter((l) => l.n != null).length >= 2;
+  const found: { t: Tracked; first: number; count: number; rank: number | null }[] = [];
   for (const t of tracked) {
     const positions = new Set<number>();
     for (const term of t.terms) for (const p of findAll(norm, term)) positions.add(p);
-    if (positions.size) found.push({ t, first: Math.min(...positions), count: positions.size });
+    if (!positions.size) continue;
+    const sorted = [...positions].sort((a, b) => a - b);
+    let rank: number | null = null;
+    if (hasRanking) {
+      for (const p of sorted) {
+        const line = lines.find((l) => p >= l.start && p <= l.end);
+        if (line?.n != null) {
+          rank = line.n;
+          break;
+        }
+      }
+    }
+    found.push({ t, first: sorted[0], count: positions.size, rank });
   }
   found.sort((a, b) => a.first - b.first);
-  // normalize() no cambia la longitud del texto en español (NFD + borrar diacríticos
-  // puede acortarla), así que recalculamos el índice sobre el original de forma aproximada.
   return found.map((f, i) => ({
     name: f.t.name,
     own: f.t.own,
     position: i + 1,
+    explicitRank: f.rank,
     count: f.count,
     snippet: snippetAround(answer, approxOriginalIndex(answer, f.first)),
   }));
@@ -128,6 +154,38 @@ const STOP_NAMES = new Set(
     "integraciones", "costo", "costos", "mejor para", "ubicacion", "ubicación", "horario", "contacto",
   ].map(normalize),
 );
+
+// Palabras con las que suelen empezar los títulos descriptivos en negrita ("Muy fuerte en stock",
+// "Ideal para pymes"): no son marcas.
+const DESCRIPTIVE_START = new Set(
+  [
+    "muy", "mas", "mejor", "mejores", "ideal", "buena", "bueno", "buen", "excelente", "gran", "grande", "alta", "alto", "baja", "bajo",
+    "amplia", "amplio", "precio", "precios", "opcion", "opciones", "atencion", "servicio", "servicios", "calidad", "ubicacion", "envio",
+    "envios", "stock", "variedad", "facil", "rapido", "rapida", "ventaja", "ventajas", "desventaja", "recomendado", "recomendada", "popular",
+    "lider", "fuerte", "solido", "solida", "economico", "economica", "barato", "barata", "caro", "cara", "para", "por", "con", "sin", "si",
+    "no", "como", "que", "cuando", "donde", "tambien", "otra", "otras", "otro", "otros", "algunas", "algunos", "todas", "todos", "cada",
+    "paso",
+    "tip", "tips", "ejemplo", "ejemplos", "experiencia", "reputacion", "garantia", "financiacion", "cuotas", "descuentos", "promociones",
+    "cobertura", "horarios", "seguridad", "confianza", "comunidad", "reseñas", "resenas", "opiniones", "comparacion", "comparativa",
+  ].map(normalize),
+);
+const CONNECTORS = new Set(["de", "del", "la", "las", "los", "el", "y", "e", "&", "and", "of", "the", "en", "da", "do"]);
+
+/** Heurística conservadora: ¿parece un nombre propio de marca y no un título descriptivo? */
+export function looksLikeBrand(candidate: string): boolean {
+  const words = candidate.split(/\s+/).filter(Boolean);
+  if (!words.length || words.length > 5) return false;
+  if (!/^[A-Z0-9ÁÉÍÓÚÑ]/.test(words[0])) return false;
+  if (DESCRIPTIVE_START.has(normalize(words[0]))) return false;
+  // Todas las palabras (salvo conectores) deben empezar en mayúscula o número, o ser un dominio.
+  for (const w of words.slice(1)) {
+    if (CONNECTORS.has(w.toLowerCase())) continue;
+    if (/^[a-z0-9-]+\.[a-z.]{2,}$/i.test(w)) continue;
+    if (!/^[A-Z0-9ÁÉÍÓÚÑ]/.test(w)) return false;
+  }
+  if (words.length > 1 && CONNECTORS.has(words[words.length - 1].toLowerCase())) return false;
+  return true;
+}
 
 /**
  * Marcas que la IA nombra en listas y que no estamos siguiendo: sirven para sugerir competidores.
@@ -153,8 +211,8 @@ export function extractListedBrands(answer: string, tracked: Tracked[]): string[
     const n = normalize(c);
     if (c.length < 2 || c.length > 40) continue;
     if (c.split(/\s+/).length > 5) continue;
-    if (!/^[A-Z0-9ÁÉÍÓÚÑ]/.test(c)) continue;
     if (STOP_NAMES.has(n)) continue;
+    if (!looksLikeBrand(c)) continue;
     if (trackedTerms.some((t) => n === t || n.includes(t) || t.includes(n))) continue;
     if (!out.has(n)) out.set(n, c);
   }
@@ -220,6 +278,11 @@ export function dedupeSources(sources: Source[]): Source[] {
   return out;
 }
 
+export function citesDomain(sources: Source[], domain: string | undefined | null): boolean {
+  if (!domain) return false;
+  return sources.some((s) => sameSite(s.domain || domainOf(s.url), domain));
+}
+
 export type Analysis = {
   mentions: Mention[];
   otherBrands: string[];
@@ -238,9 +301,8 @@ export function analyzeAnswer(
   const tracked = trackedSet(brand, competitors);
   const mentions = detectMentions(answer, tracked);
   const own = mentions.find((m) => m.own);
-  const ownCited =
-    sources.some((s) => sameSite(s.domain || domainOf(s.url), brand.domain)) ||
-    normalize(answer).includes(normalize(cleanDomain(brand.domain)));
+  // "Cita" = la respuesta enlaza al dominio (un link o una fuente). Nombrar el dominio en el texto no cuenta.
+  const ownCited = citesDomain(sources, brand.domain);
   return {
     mentions,
     otherBrands: extractListedBrands(answer, tracked),

@@ -1,17 +1,21 @@
-import Link from "next/link";
 import { Badge } from "@/components/ui";
-import { promptPoolUsed, prospectsThisMonth, workspaceBrands } from "@/lib/access";
+import { prospectsThisMonth, workspaceBrands } from "@/lib/access";
 import { requireCtx } from "@/lib/auth";
-import { ENGINE_IDS, ENGINES, engineConfigured } from "@/lib/config";
 import { isEphemeralDb } from "@/lib/db";
+import { LIMITS } from "@/lib/limits";
 import { helperAvailable } from "@/lib/llm";
+import { collectorAvailability } from "@/lib/queue";
 import { updateWorkspaceAction } from "./actions";
 
 export const metadata = { title: "Ajustes" };
 
 export default async function Page() {
   const ctx = await requireCtx();
-  const [brands, pool, prospects] = await Promise.all([workspaceBrands(ctx.workspace.id), promptPoolUsed(ctx.workspace.id), prospectsThisMonth(ctx.workspace.id)]);
+  const [brands, prospects, avail] = await Promise.all([
+    workspaceBrands(ctx.workspace.id),
+    prospectsThisMonth(ctx.workspace.id),
+    collectorAvailability(Number(ctx.workspace.is_demo ?? 0) === 1),
+  ]);
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold tracking-tight">Ajustes</h1>
@@ -41,34 +45,37 @@ export default async function Page() {
         </form>
         <div className="space-y-5">
           <div className="card p-6">
-            <h2 className="font-bold">Plan {ctx.plan.name}</h2>
+            <h2 className="font-bold">Límites de uso</h2>
             <ul className="mt-3 space-y-1.5 text-sm">
-              <li className="flex justify-between"><span className="text-mute">Marcas</span><span>{brands.length} / {ctx.plan.maxBrands}</span></li>
-              <li className="flex justify-between"><span className="text-mute">Preguntas activas</span><span>{pool} / {ctx.plan.promptPool}</span></li>
-              <li className="flex justify-between"><span className="text-mute">Motores por marca</span><span>{ctx.plan.maxEngines}</span></li>
+              <li className="flex justify-between"><span className="text-mute">Clientes</span><span>{brands.length} / {LIMITS.maxClientsPerAgency}</span></li>
+              <li className="flex justify-between"><span className="text-mute">Preguntas por análisis</span><span>{LIMITS.minPrompts}–{LIMITS.maxPrompts}</span></li>
+              <li className="flex justify-between"><span className="text-mute">Ejecuciones por análisis</span><span>hasta {LIMITS.maxExecutionsPerAnalysis}</span></li>
+              <li className="flex justify-between"><span className="text-mute">Ejecuciones por día</span><span>hasta {LIMITS.maxDailyExecutionsPerAgency}</span></li>
+              <li className="flex justify-between"><span className="text-mute">Análisis en curso a la vez</span><span>{LIMITS.maxActiveAnalysesPerAgency}</span></li>
               <li className="flex justify-between"><span className="text-mute">Prospecciones este mes</span><span>{prospects} / {ctx.plan.prospectsPerMonth}</span></li>
             </ul>
-            <Link href="/precios" className="btn-ghost mt-4 w-full">Cambiar de plan</Link>
           </div>
           <div className="card p-6">
-            <h2 className="font-bold">Motores conectados</h2>
+            <h2 className="font-bold">Motores de recolección</h2>
             <ul className="mt-3 space-y-2 text-sm">
-              {ENGINE_IDS.map((e) => (
-                <li key={e} className="flex items-center justify-between">
-                  <span>{ENGINES[e].label} <span className="text-xs text-mute">({ENGINES[e].envKey})</span></span>
-                  {engineConfigured(e) ? <Badge tone="ok">real</Badge> : <Badge tone="sol">simulado</Badge>}
+              {avail.map((a) => (
+                <li key={a.id} className="flex items-center justify-between gap-3">
+                  <span>{a.label}</span>
+                  <Badge tone={a.selectable ? "ok" : a.status === "requires_intervention" ? "sol" : "neutral"} title={a.reason ?? undefined}>{a.status}</Badge>
                 </li>
               ))}
               <li className="flex items-center justify-between">
-                <span>Redacción y sugerencias</span>
-                {helperAvailable() ? <Badge tone="ok">activo</Badge> : <Badge tone="sol">plantillas</Badge>}
+                <span>Sugerencias de preguntas</span>
+                {helperAvailable() ? <Badge tone="ok">IA</Badge> : <Badge tone="sol">plantillas</Badge>}
               </li>
               <li className="flex items-center justify-between">
                 <span>Base de datos</span>
                 {isEphemeralDb() ? <Badge tone="sol">temporal</Badge> : <Badge tone="ok">persistente</Badge>}
               </li>
             </ul>
-            <p className="mt-3 text-xs text-mute">Las claves se configuran como variables de entorno del servidor; nunca se muestran en el panel.</p>
+            <p className="mt-3 text-xs text-mute">
+              Los motores los opera el equipo de ChapaGEO en el worker. La agencia no necesita claves de API, cuentas ni extensiones.
+            </p>
           </div>
         </div>
       </div>

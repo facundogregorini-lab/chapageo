@@ -1,78 +1,68 @@
 import { deleteBrandAction, updateBrandAction } from "@/app/app/marcas/actions";
 import { brandForCtx } from "@/lib/access";
-import { ENGINE_IDS, ENGINES, engineConfigured } from "@/lib/config";
+import { COUNTRIES } from "@/lib/config";
 
-export const metadata = { title: "Configuración de la marca" };
+export const metadata = { title: "Configuración del cliente" };
 
 export default async function Page({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const { ctx, brand } = await brandForCtx(id);
+  const { brand } = await brandForCtx(id);
   return (
     <div className="grid gap-5 lg:grid-cols-[1.4fr_1fr]">
       <form action={updateBrandAction.bind(null, id)} className="card space-y-4 p-6">
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
-            <label className="label">Nombre</label>
+            <label className="label">Nombre de la marca</label>
             <input name="name" defaultValue={brand.name} className="input" />
           </div>
           <div>
-            <label className="label">Rubro</label>
+            <label className="label">Categoría</label>
             <input name="category" defaultValue={brand.category ?? ""} className="input" />
           </div>
         </div>
         <div>
-          <label className="label">Descripción</label>
-          <textarea name="description" defaultValue={brand.description ?? ""} rows={2} className="input" />
+          <label className="label">Descripción del negocio</label>
+          <textarea name="description" defaultValue={brand.description ?? ""} rows={3} className="input" />
         </div>
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-4 sm:grid-cols-3">
           <div>
-            <label className="label">Ciudad</label>
-            <input name="city" defaultValue={brand.city ?? ""} className="input" />
-          </div>
-          <div>
-            <label className="label">Otros nombres (separados por coma)</label>
-            <input name="aliases" defaultValue={brand.aliases.join(", ")} className="input" />
-          </div>
-        </div>
-        <div>
-          <label className="label">Competidores (uno por línea: Nombre, dominio)</label>
-          <textarea name="competitors" rows={5} defaultValue={brand.competitors.map((c) => (c.domain ? `${c.name}, ${c.domain}` : c.name)).join("\n")} className="input font-mono text-xs" />
-        </div>
-        <div>
-          <label className="label">Motores (hasta {ctx.plan.maxEngines})</label>
-          <div className="flex flex-wrap gap-3 text-sm">
-            {ENGINE_IDS.map((e) => (
-              <label key={e} className="flex items-center gap-2">
-                <input type="checkbox" name={`engine_${e}`} defaultChecked={brand.engines.includes(e)} />
-                {ENGINES[e].label}
-                {!engineConfigured(e) ? <span className="text-xs text-[#8a5a00]">(simulado)</span> : null}
-              </label>
-            ))}
-          </div>
-        </div>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div>
-            <label className="label">Repeticiones</label>
-            <select name="repetitions" defaultValue={brand.repetitions} className="input">
-              {Array.from({ length: ctx.plan.repetitions }, (_, i) => i + 1).map((n) => (
-                <option key={n} value={n}>{n}</option>
+            <label className="label">País objetivo</label>
+            <select name="country" defaultValue={brand.country} className="input">
+              {COUNTRIES.map((c) => (
+                <option key={c.code} value={c.code}>{c.name}</option>
               ))}
             </select>
           </div>
           <div>
-            <label className="label">Frecuencia</label>
-            <select name="schedule" defaultValue={brand.schedule} className="input">
-              <option value="weekly">Semanal automática</option>
-              <option value="manual">Manual</option>
+            <label className="label">Idioma</label>
+            <select name="language" defaultValue={brand.language} className="input">
+              <option value="es">Español</option>
+              <option value="pt">Portugués</option>
+              <option value="en">Inglés</option>
             </select>
           </div>
+          <div>
+            <label className="label">Alias y variantes</label>
+            <input name="aliases" defaultValue={brand.aliases.join(", ")} className="input" placeholder="Separados por coma" />
+          </div>
         </div>
-        <p className="text-xs text-mute">Los cambios de competidores aplican desde la próxima medición.</p>
+        <div>
+          <label className="label">Competidores (hasta 3)</label>
+          <div className="space-y-2">
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="grid gap-2 sm:grid-cols-2">
+                <input name={`comp_name_${i}`} defaultValue={brand.competitors[i]?.name ?? ""} placeholder="Nombre" className="input" />
+                <input name={`comp_domain_${i}`} defaultValue={brand.competitors[i]?.domain ?? ""} placeholder="dominio.com" className="input" />
+              </div>
+            ))}
+          </div>
+        </div>
+        <p className="text-xs text-mute">Los cambios aplican a los próximos análisis. Los anteriores conservan lo que se detectó cuando se ejecutaron.</p>
         <button className="btn-primary">Guardar cambios</button>
       </form>
       <div className="card h-fit p-6">
         <h3 className="font-bold text-bad">Zona de riesgo</h3>
-        <p className="mt-1 text-sm text-mute">Borrar la marca elimina preguntas, mediciones y acciones. No se puede deshacer.</p>
+        <p className="mt-1 text-sm text-mute">Borrar el cliente elimina preguntas, análisis, respuestas y capturas. No se puede deshacer.</p>
         <form action={deleteBrandAction.bind(null, id)} className="mt-4">
           <button className="btn border border-bad/30 text-bad hover:bg-bad-50">Borrar {brand.name}</button>
         </form>
