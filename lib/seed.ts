@@ -1,11 +1,13 @@
-// Datos de demostración con marcas ficticias. Las respuestas salen del motor SIMULADO
-// (sin llamadas externas) y quedan marcadas como simuladas.
+// Espacio de DEMOSTRACIÓN (workspace is_demo = 1) con marcas ficticias. Las respuestas salen del
+// conector demo (sin llamadas externas), quedan rotuladas como "demo" y nunca se mezclan con
+// clientes reales: viven en otro workspace y los conectores demo solo se ofrecen ahí.
 
 import { analyzeAnswer } from "./analyze";
-import { generateActions } from "./actions";
 import { hashPassword } from "./auth-hash";
-import { db, id, token } from "./db";
+import type { CollectorId } from "./collectors/registry";
+import { db, token } from "./db";
 import { simulatedAnswer } from "./engines/simulated";
+import { jobId, promptSetHash } from "./queue";
 import { templatePrompts } from "./suggest";
 import type { EngineId } from "./config";
 import type { Competitor } from "./types";
@@ -60,62 +62,82 @@ export async function seedDemo() {
   const wsId = "ws_demo";
   const userId = "usr_demo";
   await c.execute({
-    sql: "INSERT INTO workspaces (id, name, plan, brand_color, report_footer, created_at) VALUES (?, ?, 'agencia', '#0f766e', ?, ?)",
-    args: [wsId, "Agencia Demo", "Reporte preparado por Agencia Demo · Datos simulados de demostración", ts.toISOString()],
+    sql: "INSERT INTO workspaces (id, name, plan, brand_color, report_footer, is_demo, created_at) VALUES (?, ?, 'agencia', '#0f766e', ?, 1, ?)",
+    args: [wsId, "Agencia Demo", "Informe de demostración · Datos simulados", ts.toISOString()],
   });
   await c.execute({
     sql: "INSERT INTO users (id, email, name, password_hash, workspace_id, created_at) VALUES (?, ?, ?, ?, ?, ?)",
     args: [userId, DEMO_EMAIL, "Equipo demo", await hashPassword(token()), wsId, ts.toISOString()],
   });
 
+  const collectors: CollectorId[] = ["demo_chatgpt", "demo_gemini"];
   for (const [i, b] of BRANDS.entries()) {
     const brandId = `brd_demo${i + 1}`;
+    const brand = { name: b.name, domain: b.domain, aliases: [] as string[], competitors: b.competitors };
     await c.execute({
       sql: `INSERT INTO brands (id, workspace_id, name, domain, description, category, country, city, language, aliases, competitors, engines, repetitions, schedule, share_token, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, 'AR', ?, 'es', '[]', ?, ?, 3, 'weekly', ?, ?)`,
-      args: [brandId, wsId, b.name, b.domain, b.description, b.category, b.city, JSON.stringify(b.competitors), JSON.stringify(b.engines), `demo${i + 1}${DEMO_SHARE_SUFFIX}`, new Date(ts.getTime() - 21 * 864e5).toISOString()],
+            VALUES (?, ?, ?, ?, ?, ?, 'AR', NULL, 'es', '[]', ?, '[]', 2, 'manual', ?, ?)`,
+      args: [brandId, wsId, b.name, b.domain, b.description, b.category, JSON.stringify(b.competitors), `demo${i + 1}${DEMO_SHARE_SUFFIX}`, new Date(ts.getTime() - 21 * 864e5).toISOString()],
     });
-    const prompts = templatePrompts({ name: b.name, domain: b.domain, category: b.category, country: "AR", city: b.city, competitors: b.competitors }, 12);
-    const promptIds: string[] = [];
+    const prompts = templatePrompts({ name: b.name, domain: b.domain, category: b.category, country: "AR", city: b.city, competitors: b.competitors }, 12).map((p, k) => ({
+      ...p,
+      id: `prm_demo${i + 1}_${k + 1}`,
+    }));
     for (const p of prompts) {
-      const pid = id("prm_");
-      promptIds.push(pid);
       await c.execute({
-        sql: "INSERT INTO prompts (id, brand_id, text, kind, intent, topic, active, created_at) VALUES (?, ?, ?, ?, ?, ?, 1, ?)",
-        args: [pid, brandId, p.text, p.kind, p.intent, p.topic, ts.toISOString()],
+        sql: "INSERT INTO prompts (id, brand_id, text, kind, intent, topic, active, category, approved, source, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, 1, ?, 1, 'plantilla', ?, ?)",
+        args: [p.id, brandId, p.text, p.category === "marca" ? "con_marca" : "sin_marca", p.intent, p.topic, p.category, ts.toISOString(), ts.toISOString()],
       });
     }
-    // Tres cortes semanales para que se vea la tendencia
-    for (let week = 2; week >= 0; week--) {
+    const hash = promptSetHash(prompts, collectors);
+    // Dos análisis comparables (mismas preguntas y motores), con dos semanas de diferencia.
+    for (const week of [2, 0]) {
       const when = new Date(ts.getTime() - week * 7 * 864e5).toISOString();
-      const runId = id("run_");
+      const runId = `run_demo${i + 1}_${week}`;
       const stmts: { sql: string; args: (string | number | null)[] }[] = [];
       let ok = 0;
-      prompts.forEach((p, i) => {
-        for (const engine of b.engines)
-          for (let rep = 1; rep <= 3; rep++) {
+      let failed = 0;
+      for (const [k, p] of prompts.entries())
+        for (const col of collectors)
+          for (let rep = 1; rep <= 2; rep++) {
+            const engine: EngineId = col === "demo_chatgpt" ? "chatgpt" : "gemini";
+            const jid = jobId(runId, p.id, col, rep);
+            // Un par de errores simulados en el último análisis, para mostrar cobertura y estados.
+            if (week === 0 && rep === 2 && k < 2 && col === "demo_gemini") {
+              failed++;
+              stmts.push({
+                sql: `INSERT INTO responses (id, run_id, brand_id, workspace_id, prompt_id, prompt_text, prompt_kind, prompt_category, engine, collector, collection_method,
+                        repetition, status, attempts, max_attempts, error, error_code, country, language, simulated, created_at, executed_at, location_verification, session_type, search_mode)
+                      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'demo', ?, 'failed', 3, 3, 'Error simulado para la demostración (tiempo agotado)', 'timeout', 'AR', 'es', 1, ?, ?, 'no_aplica', 'simulada', 'simulado')`,
+                args: [jid, runId, brandId, wsId, p.id, p.text, p.category === "marca" ? "con_marca" : "sin_marca", p.category, engine, col, rep, when, when],
+              });
+              continue;
+            }
             const res = simulatedAnswer(
-              { prompt: p.text, country: "AR", city: b.city, language: "es" },
-              { engine, repetition: rep + (2 - week) * 3, brand: b, competitors: b.competitors, branded: p.kind === "con_marca" },
+              { prompt: p.text, country: "AR", language: "es" },
+              { engine, repetition: rep + (2 - week) * 3, brand: b, competitors: b.competitors, branded: p.category === "marca" },
             );
-            const a = analyzeAnswer(res.answer, res.sources, { name: b.name, domain: b.domain, aliases: [] }, b.competitors);
+            const a = analyzeAnswer(res.answer, res.sources, brand, b.competitors);
             ok++;
             stmts.push({
-              sql: `INSERT INTO responses (id, run_id, brand_id, prompt_id, prompt_text, prompt_kind, engine, model, repetition, status, answer, sources, mentions, other_brands,
-                    brand_mentioned, brand_position, own_cited, sentiment, sentiment_score, cost_usd, latency_ms, country, language, simulated, created_at, executed_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, 'simulado', ?, 'ok', ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 'AR', 'es', 1, ?, ?)`,
+              sql: `INSERT INTO responses (id, run_id, brand_id, workspace_id, prompt_id, prompt_text, prompt_kind, prompt_category, engine, collector, collection_method, model,
+                      repetition, status, attempts, max_attempts, answer, sources, mentions, other_brands, brand_mentioned, brand_position, own_cited, sentiment, sentiment_score,
+                      cost_usd, latency_ms, country, language, simulated, created_at, executed_at, observed_country, location_verification, session_type, search_mode, conditions)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'demo', 'simulado', ?, 'completed', 1, 3, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 'AR', 'es', 1, ?, ?, NULL, 'no_aplica', 'simulada', 'simulado', ?)`,
               args: [
-                id("res_"), runId, brandId, promptIds[i], p.text, p.kind, engine, rep, res.answer, JSON.stringify(res.sources), JSON.stringify(a.mentions),
-                JSON.stringify(a.otherBrands), a.brandMentioned ? 1 : 0, a.brandPosition, a.ownCited ? 1 : 0, a.sentiment?.label ?? null, a.sentiment?.score ?? null, when, when,
+                jid, runId, brandId, wsId, p.id, p.text, p.category === "marca" ? "con_marca" : "sin_marca", p.category, engine, col, rep, res.answer,
+                JSON.stringify(res.sources), JSON.stringify(a.mentions), JSON.stringify(a.otherBrands), a.brandMentioned ? 1 : 0, a.brandPosition, a.ownCited ? 1 : 0,
+                a.sentiment?.label ?? null, a.sentiment?.score ?? null, when, when, JSON.stringify({ collectionMethod: "demo", requestedCountry: "AR", language: "es" }),
               ],
             });
           }
-      });
       await c.batch(
         [
           {
-            sql: "INSERT INTO runs (id, brand_id, status, trigger, total, done_count, failed_count, simulated, cost_usd, created_at, finished_at) VALUES (?, ?, 'done', 'cron', ?, ?, 0, 1, 0, ?, ?)",
-            args: [runId, brandId, ok, ok, when, when],
+            sql: `INSERT INTO runs (id, brand_id, workspace_id, status, trigger, total, done_count, failed_count, simulated, is_demo, cost_usd, collectors, repetitions,
+                    requested_country, language, idempotency_key, prompt_set_hash, brand_snapshot, created_at, started_at, finished_at)
+                  VALUES (?, ?, ?, ?, 'demo', ?, ?, ?, 1, 1, 0, ?, 2, 'AR', 'es', ?, ?, ?, ?, ?, ?)`,
+            args: [runId, brandId, wsId, failed ? "partial" : "completed", ok + failed, ok, failed, JSON.stringify(collectors), runId, hash, JSON.stringify(brand), when, when, when],
           },
           ...stmts,
         ],
@@ -123,6 +145,5 @@ export async function seedDemo() {
       );
       await c.execute({ sql: "UPDATE brands SET last_run_at = ? WHERE id = ?", args: [when, brandId] });
     }
-    await generateActions(brandId);
   }
 }

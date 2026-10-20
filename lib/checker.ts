@@ -1,12 +1,14 @@
 // Checker rápido: lo usa la landing (gratis, sin registro) y la prospección de agencias.
-// 5 preguntas sin marca × 1 motor con búsqueda web + auditoría técnica del sitio.
+// 5 preguntas de descubrimiento × 1 motor por API OFICIAL + auditoría técnica del sitio.
+// Es una vista previa rotulada como API (no es captura de la interfaz web) y nunca se simula:
+// si el servidor no tiene una clave de API, devuelve solo la auditoría y las preguntas.
 
 import { analyzeAnswer, cleanDomain } from "./analyze";
 import { auditSite, type SiteAudit } from "./audit";
+import { apiCollector } from "./collectors/api";
 import { ENGINES, engineConfigured, type EngineId } from "./config";
 import { id, now, run, token } from "./db";
-import { askEngine } from "./engines";
-import { guessBrandName, suggestPrompts } from "./suggest";
+import { guessBrandName, templatePrompts } from "./suggest";
 import type { Source } from "./types";
 
 export type CheckerInput = { domain: string; category: string; country: string; city?: string | null; brandName?: string | null };
@@ -17,7 +19,7 @@ export type CheckerResult = {
   category: string;
   country: string;
   city: string | null;
-  engine: EngineId;
+  engine: EngineId | null;
   engineLabel: string;
   simulated: boolean;
   questions: {
@@ -41,9 +43,9 @@ export type CheckerResult = {
   createdAt: string;
 };
 
-export function pickCheckerEngine(): EngineId {
+export function pickCheckerEngine(): EngineId | null {
   const order: EngineId[] = ["gemini", "chatgpt", "perplexity", "claude"];
-  return order.find(engineConfigured) ?? "gemini";
+  return order.find(engineConfigured) ?? null;
 }
 
 export async function runChecker(input: CheckerInput): Promise<CheckerResult> {
@@ -51,36 +53,37 @@ export async function runChecker(input: CheckerInput): Promise<CheckerResult> {
   const audit = await auditSite(domain);
   const brandName = input.brandName?.trim() || guessBrandName(audit.home.title, audit.home.siteName, domain);
   const engine = pickCheckerEngine();
-  const { prompts } = await suggestPrompts(
+  const prompts = templatePrompts(
     { name: brandName, domain, category: input.category, description: audit.home.description, country: input.country, city: input.city },
     8,
   );
-  const unbranded = prompts.filter((p) => p.kind === "sin_marca").slice(0, 5);
+  const unbranded = prompts.filter((p) => p.category === "descubrimiento").slice(0, 5);
   const brand = { name: brandName, domain, aliases: [] as string[] };
+  const collector = engine ? apiCollector(`${engine}_api`, engine) : null;
 
   const questions = await Promise.all(
-    unbranded.map(async (p, i) => {
-      try {
-        const res = await askEngine(
-          engine,
-          { prompt: p.text, country: input.country, city: input.city, language: "es" },
-          { repetition: i + 1, brand: { name: brandName, domain, category: input.category }, competitors: [], branded: false },
-        );
-        const a = analyzeAnswer(res.answer, res.sources, brand, []);
-        return {
-          text: p.text,
-          mentioned: a.brandMentioned,
-          position: a.brandPosition,
-          cited: a.ownCited,
-          others: a.otherBrands.slice(0, 6),
-          snippet: a.mentions.find((m) => m.own)?.snippet ?? null,
-          answer: res.answer,
-          sources: res.sources.slice(0, 8),
-          simulated: res.simulated,
-        };
-      } catch (e) {
-        return { text: p.text, mentioned: false, position: null, cited: false, others: [], snippet: null, answer: "", sources: [], error: (e as Error).message, simulated: false };
+    unbranded.map(async (p) => {
+      if (!collector) {
+        return { text: p.text, mentioned: false, position: null, cited: false, others: [], snippet: null, answer: "", sources: [], error: "Sin motor configurado en este servidor" };
       }
+      const res = await collector.collect(
+        { prompt: p.text, engine: engine!, requestedCountry: input.country, language: "es", runId: "checker", jobId: "checker" },
+        { saveEvidence: async () => "", signal: new AbortController().signal, log: () => undefined },
+      );
+      if (res.status !== "completed" || !res.answerText) {
+        return { text: p.text, mentioned: false, position: null, cited: false, others: [], snippet: null, answer: "", sources: [], error: res.error?.message ?? "Sin respuesta" };
+      }
+      const a = analyzeAnswer(res.answerText, res.citations, brand, []);
+      return {
+        text: p.text,
+        mentioned: a.brandMentioned,
+        position: a.brandPosition,
+        cited: a.ownCited,
+        others: a.otherBrands.slice(0, 6),
+        snippet: a.mentions.find((m) => m.own)?.snippet ?? null,
+        answer: res.answerText,
+        sources: res.citations.slice(0, 8),
+      };
     }),
   );
 
@@ -104,8 +107,8 @@ export async function runChecker(input: CheckerInput): Promise<CheckerResult> {
     country: input.country,
     city: input.city ?? null,
     engine,
-    engineLabel: ENGINES[engine].label,
-    simulated: questions.some((q) => (q as { simulated?: boolean }).simulated),
+    engineLabel: engine ? `${ENGINES[engine].label} (API oficial)` : "ningún motor",
+    simulated: false,
     questions,
     mentioned,
     total: valid.length,

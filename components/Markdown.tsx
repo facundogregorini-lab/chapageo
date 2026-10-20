@@ -1,4 +1,5 @@
-// Render de Markdown mínimo y seguro (escapa HTML) para borradores y respuestas de la IA.
+// Render de Markdown mínimo y seguro para respuestas de la IA (contenido externo no confiable):
+// escapa todo el HTML y solo genera enlaces http(s) con rel="nofollow ugc noopener noreferrer".
 
 function esc(s: string) {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -9,7 +10,7 @@ function inline(s: string) {
   out = out.replace(/`([^`]+)`/g, "<code>$1</code>");
   out = out.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
   out = out.replace(/(^|[^*])\*([^*\n]+)\*/g, "$1<em>$2</em>");
-  out = out.replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" class="text-celeste-700 underline">$1</a>');
+  out = out.replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer nofollow ugc" class="text-celeste-700 underline">$1</a>');
   return out;
 }
 

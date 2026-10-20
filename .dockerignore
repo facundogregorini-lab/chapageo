@@ -1,0 +1,9 @@
+node_modules
+.next
+.env
+.env.*
+!.env.example
+.worker-sessions
+probe-output
+data
+.git

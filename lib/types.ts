@@ -8,7 +8,10 @@ export type Source = { url: string; title?: string; domain: string };
 export type Mention = {
   name: string;
   own: boolean;
+  /** Orden de aparición entre las marcas seguidas (1 = la primera nombrada). No es un ranking. */
   position: number;
+  /** Número del ítem en una lista numerada de la respuesta, si la marca aparece en una. Sino null. */
+  explicitRank?: number | null;
   count: number;
   snippet: string;
 };
@@ -20,6 +23,7 @@ export type Workspace = {
   brand_color: string;
   logo_url: string | null;
   report_footer: string | null;
+  is_demo?: number;
   created_at: string;
 };
 
@@ -52,6 +56,30 @@ export type Brand = {
 
 export type PromptKind = "sin_marca" | "con_marca";
 export type PromptIntent = "informativa" | "comercial" | "transaccional";
+/**
+ * Grupos de preguntas que nunca se mezclan al calcular visibilidad:
+ * - descubrimiento: no nombran a la marca ni a competidores.
+ * - comparacion: comparaciones y alternativas; pueden nombrar competidores, no a la marca.
+ * - marca: nombran explícitamente a la marca (sesgan la probabilidad de mención).
+ */
+export type PromptCategory = "descubrimiento" | "comparacion" | "marca";
+export const PROMPT_CATEGORIES: PromptCategory[] = ["descubrimiento", "comparacion", "marca"];
+export const CATEGORY_LABEL: Record<PromptCategory, string> = {
+  descubrimiento: "Descubrimiento",
+  comparacion: "Comparación y alternativas",
+  marca: "Sobre la marca",
+};
+
+export type JobStatus = "pending" | "running" | "completed" | "partial" | "failed" | "requires_intervention";
+export type RunStatus = JobStatus;
+export const STATUS_LABEL: Record<JobStatus, string> = {
+  pending: "Pendiente",
+  running: "En ejecución",
+  completed: "Completado",
+  partial: "Parcial",
+  failed: "Fallido",
+  requires_intervention: "Requiere intervención",
+};
 
 export type Prompt = {
   id: string;
@@ -61,13 +89,26 @@ export type Prompt = {
   intent: PromptIntent;
   topic: string | null;
   active: number;
+  category: PromptCategory;
+  approved: number;
+  source: string;
   created_at: string;
+  updated_at: string | null;
 };
 
 export type Run = {
   id: string;
   brand_id: string;
-  status: "queued" | "running" | "done" | "failed";
+  workspace_id: string;
+  status: RunStatus;
+  status_detail: string | null;
+  collectors: string[];
+  repetitions: number;
+  requested_country: string;
+  language: string;
+  prompt_set_hash: string | null;
+  is_demo: number;
+  started_at: string | null;
   trigger: string;
   total: number;
   done_count: number;
@@ -78,18 +119,33 @@ export type Run = {
   finished_at: string | null;
 };
 
+/** Una ejecución: pregunta × conector × repetición, con su propio estado y resultado. */
 export type ResponseRow = {
   id: string;
   run_id: string;
   brand_id: string;
+  workspace_id: string;
   prompt_id: string;
   prompt_text: string;
   prompt_kind: PromptKind;
+  prompt_category: PromptCategory;
   engine: EngineId;
+  collector: string;
+  collection_method: string;
   model: string | null;
   repetition: number;
-  status: "pending" | "processing" | "ok" | "error";
+  status: JobStatus;
+  attempts: number;
+  max_attempts: number;
+  next_attempt_at: string | null;
   error: string | null;
+  error_code: string | null;
+  observed_country: string | null;
+  location_verification: string | null;
+  search_mode: string | null;
+  session_type: string | null;
+  screenshot_id: string | null;
+  started_at: string | null;
   answer: string | null;
   sources: Source[];
   mentions: Mention[];
@@ -157,6 +213,9 @@ export function toResponse(r: RawRow): ResponseRow {
     cost_usd: Number(r.cost_usd ?? 0),
     simulated: Number(r.simulated),
     repetition: Number(r.repetition),
+    attempts: Number(r.attempts ?? 0),
+    max_attempts: Number(r.max_attempts ?? 0),
+    prompt_category: (r.prompt_category as PromptCategory) ?? (r.prompt_kind === "con_marca" ? "marca" : "descubrimiento"),
   };
 }
 
@@ -176,5 +235,12 @@ export function toRun(r: RawRow): Run {
     failed_count: Number(r.failed_count),
     simulated: Number(r.simulated),
     cost_usd: Number(r.cost_usd),
+    collectors: parseJson(r.collectors, []),
+    repetitions: Number(r.repetitions ?? 1),
+    is_demo: Number(r.is_demo ?? 0),
   };
+}
+
+export function toPrompt(r: RawRow): Prompt {
+  return { ...(r as unknown as Prompt), active: Number(r.active), approved: Number(r.approved ?? 0) };
 }
