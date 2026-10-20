@@ -54,7 +54,7 @@ Sin `DATABASE_URL` usa SQLite en `data/chapageo.db` y carga la demo la primera v
 
 ## Deploy (Vercel + Turso)
 
-1. Creá una base en [Turso](https://turso.tech) y configurá `DATABASE_URL` (`libsql://…`) y `DATABASE_AUTH_TOKEN`.
+1. Creá una base en [Turso](https://turso.tech) y configurá `DATABASE_URL` (`libsql://…`) y `DATABASE_AUTH_TOKEN`. También sirven los nombres `TURSO_DATABASE_URL` y `TURSO_AUTH_TOKEN` que crea la integración de Vercel Storage.
 2. Configurá `AUTH_SECRET`, `CRON_SECRET` y las claves de los motores.
 3. Opcional: `PAY_LINK_*` (links de Mercado Pago), `SALES_WHATSAPP`, `ADMIN_EMAILS` (quién ve Validación).
 4. `vercel.json` agenda `/api/cron` todos los días a las 11 UTC; crea los cortes semanales vencidos y avanza las corridas abiertas.

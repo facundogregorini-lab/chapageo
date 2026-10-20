@@ -145,13 +145,17 @@ CREATE TABLE IF NOT EXISTS events (
 CREATE INDEX IF NOT EXISTS idx_events_name ON events(name, created_at);
 `;
 
+// Vercel Storage (Turso) crea TURSO_DATABASE_URL y TURSO_AUTH_TOKEN; aceptamos los dos nombres.
+const DB_URL = process.env.DATABASE_URL || process.env.TURSO_DATABASE_URL;
+const DB_TOKEN = process.env.DATABASE_AUTH_TOKEN || process.env.TURSO_AUTH_TOKEN;
+
 let client: Client | null = null;
 let schemaReady: Promise<void> | null = null;
 let seedReady: Promise<void> | null = null;
 let seeding = false;
 
 function databaseUrl(): string {
-  if (process.env.DATABASE_URL) return process.env.DATABASE_URL;
+  if (DB_URL) return DB_URL;
   // Vercel solo permite escribir en /tmp: sirve para demo, no persiste entre instancias.
   if (process.env.VERCEL) return "file:/tmp/chapageo.db";
   mkdirSync("data", { recursive: true });
@@ -160,13 +164,13 @@ function databaseUrl(): string {
 
 function getClient(): Client {
   if (!client) {
-    client = createClient({ url: databaseUrl(), authToken: process.env.DATABASE_AUTH_TOKEN });
+    client = createClient({ url: databaseUrl(), authToken: DB_TOKEN });
   }
   return client;
 }
 
 export function isEphemeralDb() {
-  return !process.env.DATABASE_URL && Boolean(process.env.VERCEL);
+  return !DB_URL && Boolean(process.env.VERCEL);
 }
 
 async function maybeSeed() {
