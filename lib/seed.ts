@@ -11,6 +11,7 @@ import type { EngineId } from "./config";
 import type { Competitor } from "./types";
 
 export const DEMO_EMAIL = "demo@chapageo.lat";
+const DEMO_SHARE_SUFFIX = "-reporte-demo";
 
 type DemoBrand = {
   name: string;
@@ -54,8 +55,10 @@ const BRANDS: DemoBrand[] = [
 export async function seedDemo() {
   const c = await db();
   const ts = new Date();
-  const wsId = id("ws_");
-  const userId = id("usr_");
+  // IDs fijos: si dos instancias siembran a la vez (o cada una tiene su base en /tmp),
+  // la demo queda con los mismos IDs y la sesión sirve en cualquiera.
+  const wsId = "ws_demo";
+  const userId = "usr_demo";
   await c.execute({
     sql: "INSERT INTO workspaces (id, name, plan, brand_color, report_footer, created_at) VALUES (?, ?, 'agencia', '#0f766e', ?, ?)",
     args: [wsId, "Agencia Demo", "Reporte preparado por Agencia Demo · Datos simulados de demostración", ts.toISOString()],
@@ -65,12 +68,12 @@ export async function seedDemo() {
     args: [userId, DEMO_EMAIL, "Equipo demo", await hashPassword(token()), wsId, ts.toISOString()],
   });
 
-  for (const b of BRANDS) {
-    const brandId = id("brd_");
+  for (const [i, b] of BRANDS.entries()) {
+    const brandId = `brd_demo${i + 1}`;
     await c.execute({
       sql: `INSERT INTO brands (id, workspace_id, name, domain, description, category, country, city, language, aliases, competitors, engines, repetitions, schedule, share_token, created_at)
             VALUES (?, ?, ?, ?, ?, ?, 'AR', ?, 'es', '[]', ?, ?, 3, 'weekly', ?, ?)`,
-      args: [brandId, wsId, b.name, b.domain, b.description, b.category, b.city, JSON.stringify(b.competitors), JSON.stringify(b.engines), token(), new Date(ts.getTime() - 21 * 864e5).toISOString()],
+      args: [brandId, wsId, b.name, b.domain, b.description, b.category, b.city, JSON.stringify(b.competitors), JSON.stringify(b.engines), `demo${i + 1}${DEMO_SHARE_SUFFIX}`, new Date(ts.getTime() - 21 * 864e5).toISOString()],
     });
     const prompts = templatePrompts({ name: b.name, domain: b.domain, category: b.category, country: "AR", city: b.city, competitors: b.competitors }, 12);
     const promptIds: string[] = [];
