@@ -1,0 +1,39 @@
+import { CheckerForm } from "@/components/CheckerForm";
+import { SiteFooter, SiteHeader } from "@/components/SiteChrome";
+import { pickCheckerEngine } from "@/lib/checker";
+import { ENGINES, engineConfigured } from "@/lib/config";
+
+export const metadata = { title: "Checker de visibilidad en IA" };
+export const dynamic = "force-dynamic";
+
+export default async function Page({ searchParams }: { searchParams: Promise<{ d?: string; c?: string }> }) {
+  const { d, c } = await searchParams;
+  const engine = pickCheckerEngine();
+  return (
+    <>
+      <SiteHeader />
+      <main className="mx-auto grid max-w-6xl gap-12 px-4 py-16 lg:grid-cols-[1fr_0.9fr]">
+        <div>
+          <div className="eyebrow">Checker gratis</div>
+          <h1 className="mt-3 text-4xl font-bold tracking-tight sm:text-5xl">¿La IA recomienda tu marca?</h1>
+          <p className="mt-4 max-w-lg text-lg text-mute">
+            Ingresá tu sitio y tu rubro. Armamos 5 preguntas que haría un cliente, se las hacemos a {ENGINES[engine].label} con búsqueda web y te
+            mostramos si aparecés, quién aparece en tu lugar y qué fuentes usa.
+          </p>
+          <ul className="mt-6 space-y-2 text-sm text-mute">
+            <li>✓ Sin registro y sin tarjeta</li>
+            <li>✓ Respuestas completas, no solo un puntaje</li>
+            <li>✓ Revisión de robots.txt para bots de IA</li>
+          </ul>
+          {!engineConfigured(engine) ? (
+            <p className="mt-6 rounded-xl border border-sol/40 bg-sol-50 px-4 py-3 text-sm text-[#6b4700]">
+              Modo demostración: este servidor no tiene claves de IA configuradas, así que las respuestas son simuladas.
+            </p>
+          ) : null}
+        </div>
+        <CheckerForm initialDomain={d} initialCategory={c} />
+      </main>
+      <SiteFooter />
+    </>
+  );
+}
