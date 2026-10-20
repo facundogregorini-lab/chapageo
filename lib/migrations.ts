@@ -240,6 +240,13 @@ CREATE TABLE IF NOT EXISTS collector_status (
 );
 `,
   },
+  {
+    id: "003_ingreso_google",
+    // Cuentas creadas con Google no tienen contraseña: quedan con password_hash vacío.
+    sql: `ALTER TABLE users ADD COLUMN google_sub TEXT;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_google_sub ON users(google_sub);
+`,
+  },
 ];
 
 function statements(sql: string): string[] {

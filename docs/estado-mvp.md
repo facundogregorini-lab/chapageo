@@ -3,7 +3,7 @@
 ## Qué está implementado
 
 **Flujo de la agencia (web, en español)**
-- Registro e ingreso. Cada agencia es un espacio aislado: todas las consultas, archivos (capturas) y endpoints filtran por `workspace_id`.
+- Registro e ingreso con email y contraseña, o con Google si están `GOOGLE_CLIENT_ID` y `GOOGLE_CLIENT_SECRET` (ver `docs/operacion.md`). Cada agencia es un espacio aislado: todas las consultas, archivos (capturas) y endpoints filtran por `workspace_id`.
 - Alta de cliente en 4 pasos: datos (marca, dominio, descripción, rubro, país AR y idioma es por defecto), hasta 3 competidores con nombre y dominio, preguntas, confirmación.
 - Preguntas sugeridas desde la descripción, el rubro y el sitio (IA si hay clave configurada en la web; si no, plantillas). Se editan, se aprueban y se separan en tres grupos que nunca se mezclan en las métricas: descubrimiento, comparación/alternativas y sobre la marca. Entre 5 y 20 preguntas aprobadas por análisis.
 - Lectura del sitio del cliente: home y hasta 3 páginas relevantes, con límite de tamaño, de tiempo y de redirects, y protección SSRF (bloquea redes privadas, loopback, metadatos de nube, IPv6 equivalentes; revalida cada redirect y conecta a la IP validada).
@@ -30,13 +30,14 @@
 
 ## Qué se probó
 
-`npm test`: 38 pruebas, todas pasan.
+`npm test`: 45 pruebas, todas pasan.
 - Aislamiento entre agencias (análisis, ejecuciones, evidencia, cierre).
 - Métricas: denominadores, errores fuera del denominador, cuota contando una vez por respuesta, grupos separados, alias y límites de palabra, orden de mención vs. puesto en lista, el falso positivo de títulos en negrita («Muy fuerte en stock»).
 - Cola: idempotencia, validaciones, reintentos sin duplicados, lease perdido, CAPTCHA → intervención → reencolado.
 - Worker real en proceso aparte, cortado con SIGKILL a mitad de un análisis y recuperado por otro worker: 20 de 20 completas, sin duplicados.
 - SSRF: IPs privadas y metadatos, DNS a red privada, redirect a red interna, límites de tamaño y redirects.
 - Seguridad de render: XSS en Markdown, links, fórmulas en CSV.
+- Ingreso con Google: firma, audiencia, emisor, nonce y email verificado del `id_token`; estado adulterado; `next` solo interno; alta de agencia nueva y vinculación por email sin perder la contraseña.
 - Conector de navegador contra una página de chat local que imita la interfaz: extracción, citas, captura, timeout parcial, CAPTCHA y login.
 - Cadena completa captura → base → métricas → CSV/HTML, comprobando que cada cita mostrada corresponda a la respuesta.
 - Recorrido de la app compilada con Chromium (desktop y móvil, sin errores de consola): demo, alta de análisis, progreso en vivo con el worker, detalle de respuesta, informe.
