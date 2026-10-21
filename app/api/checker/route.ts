@@ -6,7 +6,8 @@ import { runChecker, saveAudit } from "@/lib/checker";
 import { one } from "@/lib/db";
 import { logEvent } from "@/lib/events";
 
-export const maxDuration = 60;
+// Bright Data puede tardar hasta ~1 minuto; si tarda más, el resultado se completa al abrirlo.
+export const maxDuration = 120;
 
 const Body = z.object({
   domain: z.string().min(3).max(200),

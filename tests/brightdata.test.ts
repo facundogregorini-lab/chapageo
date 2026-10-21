@@ -266,10 +266,15 @@ test("sin key el motor figura como no configurado; los datasets salen del panel 
   assert.ok(!("missing" in c2) && c2.datasetId === bd.GEMINI_DATASET_ID, "variable vacía = dataset del panel");
   const c3 = bd.brightDataConfig("brightdata_gemini", { ...process.env, BRIGHTDATA_DATASET_GEMINI: "gd_otro" });
   assert.ok(!("missing" in c3) && c3.datasetId === "gd_otro");
-  // Con la key cargada, Gemini usa el dataset del panel por defecto, pero no se elige hasta probarlo.
+  // Con la key cargada, Gemini usa el dataset del panel y se puede elegir sin la prueba manual.
   const avail = (await q.collectorAvailability(false)).find((x) => x.id === "brightdata_gemini");
-  assert.equal(avail?.status, "unverified");
-  assert.equal(avail?.selectable, false);
+  assert.equal(avail?.status, "available");
+  assert.equal(avail?.selectable, true);
+  // Una prueba que falló por algo transitorio no lo bloquea; una key rechazada sí.
+  await q.setCollectorStatus("brightdata_gemini", "unverified", "Última prueba falló: timeout", "brightdata");
+  assert.equal((await q.collectorAvailability(false)).find((x) => x.id === "brightdata_gemini")?.selectable, true);
+  await q.setCollectorStatus("brightdata_gemini", "unavailable", "Bright Data respondió 401", "brightdata");
+  assert.equal((await q.collectorAvailability(false)).find((x) => x.id === "brightdata_gemini")?.selectable, false);
 });
 
 test("cliente sincrónico: (proveedor, pregunta) → texto, fuentes, proveedor, fecha y registro crudo", async () => {
@@ -363,4 +368,15 @@ test("timeout por pedido: si Bright Data no contesta, corta con error de timeout
   const hang: import("../lib/collectors/brightdata").FetchLike = (_url, init) =>
     new Promise((_, reject) => init?.signal?.addEventListener("abort", () => reject(init.signal!.reason)));
   await assert.rejects(bd.queryBrightData("chatgpt", "x", { fetch: hang, timeoutMs: 20 }), (e: InstanceType<typeof bd.BrightDataError>) => e.code === "timeout");
+});
+
+test("sin WORKER_ENABLED solo se ofrecen los motores de Bright Data", async () => {
+  const prev = process.env.WORKER_ENABLED;
+  delete process.env.WORKER_ENABLED;
+  try {
+    const ids = (await q.collectorAvailability(false)).map((x) => x.id);
+    assert.deepEqual(ids.sort(), ["brightdata_chatgpt", "brightdata_gemini", "brightdata_perplexity"]);
+  } finally {
+    process.env.WORKER_ENABLED = prev;
+  }
 });

@@ -42,10 +42,17 @@ function dailyCap() {
   return Number.isFinite(n) && n > 0 ? Math.floor(n) : 300;
 }
 
+/** Registros de Bright Data usados hoy: ejecuciones de análisis + preguntas del checker gratis. */
 async function usedToday(): Promise<number> {
   const since = new Date(new Date().toISOString().slice(0, 10) + "T00:00:00.000Z").toISOString();
   const r = await one<{ n: number }>("SELECT COUNT(*) AS n FROM responses WHERE collector LIKE 'brightdata_%' AND claimed_at >= ?", [since]);
-  return Number(r?.n ?? 0);
+  const c = await one<{ n: number }>("SELECT COALESCE(SUM(json_extract(props, '$.n')), 0) AS n FROM events WHERE name = 'checker_brightdata' AND created_at >= ?", [since]);
+  return Number(r?.n ?? 0) + Number(c?.n ?? 0);
+}
+
+/** Cuántos registros quedan hoy dentro de BRIGHTDATA_MAX_RECORDS_PER_DAY. */
+export async function brightDataRecordsLeft(): Promise<number> {
+  return Math.max(0, dailyCap() - (await usedToday()));
 }
 
 type Opts = { fetch?: FetchLike; env?: NodeJS.ProcessEnv };

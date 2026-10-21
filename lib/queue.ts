@@ -13,6 +13,7 @@ import { brightDataConfig, isBrightDataId } from "./collectors/brightdata";
 import { COLLECTORS, isCollectorId, type CollectorId } from "./collectors/registry";
 import type { CollectResult } from "./collectors/types";
 import { all, db, id, now, one, parseJson, run } from "./db";
+import { workerEnabled } from "./config";
 import { LIMITS } from "./limits";
 import { toBrand, toPrompt, toResponse, toRun, type Brand, type JobStatus, type Prompt, type ResponseRow, type Run } from "./types";
 
@@ -69,7 +70,7 @@ export async function collectorAvailability(isDemo: boolean): Promise<CollectorA
   const online = new Set(ws.filter((w) => w.online).flatMap((w) => w.collectors));
   const known = new Set(ws.flatMap((w) => w.collectors));
   return Object.values(COLLECTORS)
-    .filter((c) => (isDemo ? c.method === "demo" : c.method !== "demo"))
+    .filter((c) => (isDemo ? c.method === "demo" : c.method !== "demo" && (workerEnabled() || isBrightDataId(c.id))))
     .map((c) => {
       if (c.method === "demo") {
         return { id: c.id, label: c.label, method: c.method, status: "available" as const, reason: null, verifiedAt: null, workerOnline: true, selectable: true };
@@ -78,14 +79,16 @@ export async function collectorAvailability(isDemo: boolean): Promise<CollectorA
       if (c.method === "third_party_capture" && isBrightDataId(c.id)) {
         // Bright Data corre desde la web: depende de la configuración de este servidor, no de un worker.
         const cfg = brightDataConfig(c.id);
-        const status = ("missing" in cfg ? "not_configured" : (s?.status ?? "unverified")) as CollectorAvailability["status"];
+        // Con la key cargada se puede elegir sin la prueba manual. Solo se bloquea si Bright Data
+        // rechazó la key (401/403) o el operador lo pausó; la prueba de Ajustes lo vuelve a habilitar.
+        const blocked = s?.status === "unavailable" || s?.status === "requires_intervention";
+        const status = ("missing" in cfg ? "not_configured" : blocked ? s!.status : "available") as CollectorAvailability["status"];
         return {
           id: c.id,
           label: c.label,
           method: c.method,
           status,
-          reason:
-            "missing" in cfg ? cfg.missing : status === "unverified" ? "Falta la prueba de conexión: Ajustes → Probar Bright Data." : (s?.reason ?? null),
+          reason: "missing" in cfg ? cfg.missing : blocked ? (s?.reason ?? null) : null,
           verifiedAt: s?.verified_at ?? null,
           workerOnline: true,
           selectable: status === "available",
