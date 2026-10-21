@@ -12,14 +12,17 @@ const STEPS = [
   "Juntando las fuentes que cita…",
 ];
 
-export function CheckerForm({ initialDomain = "", initialCategory = "", endpoint = "/api/checker", resultBase = "/auditoria", extra }: {
+export function CheckerForm({ initialDomain = "", initialCategory = "", endpoint = "/api/checker", resultBase = "/auditoria", extra, engineOptions = [] }: {
   initialDomain?: string;
   initialCategory?: string;
   endpoint?: string;
   resultBase?: string;
   extra?: Record<string, string>;
+  /** Motores que se pueden elegir. Vacío: el servidor decide (sin selector). */
+  engineOptions?: { id: string; label: string }[];
 }) {
   const router = useRouter();
+  const [engines, setEngines] = useState<string[]>(() => engineOptions.slice(0, 1).map((o) => o.id));
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -51,6 +54,7 @@ export function CheckerForm({ initialDomain = "", initialCategory = "", endpoint
           city: f.get("city") || null,
           brandName: f.get("brandName") || null,
           visitor,
+          ...(engineOptions.length ? { engines } : {}),
           ...extra,
         }),
       });
@@ -108,6 +112,30 @@ export function CheckerForm({ initialDomain = "", initialCategory = "", endpoint
           <input id="city" name="city" placeholder="Ej: Córdoba" className="input" />
         </div>
       </div>
+      {engineOptions.length > 1 ? (
+        <div>
+          <div className="label">Motores</div>
+          <p className="mb-2 text-xs text-mute">Le hacemos las 5 preguntas a cada motor que elijas, en su interfaz web, como lo haría una persona.</p>
+          <div className="grid gap-2 sm:grid-cols-3">
+            {engineOptions.map((o) => {
+              const on = engines.includes(o.id);
+              return (
+                <label key={o.id} className={`flex cursor-pointer items-center gap-2 rounded-xl border px-3 py-2.5 text-sm ${on ? "border-ink bg-white shadow-sm" : "border-line"}`}>
+                  <input
+                    type="checkbox"
+                    name="engines"
+                    value={o.id}
+                    checked={on}
+                    // Siempre queda al menos uno elegido.
+                    onChange={() => setEngines(on ? (engines.length > 1 ? engines.filter((x) => x !== o.id) : engines) : [...engines, o.id])}
+                  />
+                  <span className="font-semibold">{o.label}</span>
+                </label>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
       {error ? <p className="rounded-xl bg-bad-50 px-3 py-2 text-sm text-bad">{error}</p> : null}
       <button className="btn-primary w-full">Analizar visibilidad</button>
     </form>

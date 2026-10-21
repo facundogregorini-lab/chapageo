@@ -3,7 +3,7 @@ import { CheckerForm } from "@/components/CheckerForm";
 import { Badge, fmtDate } from "@/components/ui";
 import { prospectsThisMonth } from "@/lib/access";
 import { requireCtx } from "@/lib/auth";
-import type { CheckerResult } from "@/lib/checker";
+import { checkerEngineOptions, type CheckerResult } from "@/lib/checker";
 import { all, parseJson } from "@/lib/db";
 
 export const metadata = { title: "Prospección" };
@@ -25,7 +25,7 @@ export default async function Page() {
       </p>
       <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_1.1fr]">
         {left > 0 ? (
-          <CheckerForm endpoint="/api/prospect" resultBase="/auditoria" extra={{ mode: "prospect" }} />
+          <CheckerForm endpoint="/api/prospect" resultBase="/auditoria" extra={{ mode: "prospect" }} engineOptions={checkerEngineOptions()} />
         ) : (
           <div className="card p-6 text-sm">
             Usaste todas las auditorías de este mes. <Link href="/app/plan?plan=agencia" className="font-semibold underline">Pasá al plan Agencia</Link> para tener 15 por mes.

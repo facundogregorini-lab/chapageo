@@ -24,12 +24,13 @@ const DOMAIN = "ejemplo-inexistente-chapageo.com.ar";
 const input = { domain: DOMAIN, category: "bancos digitales", country: "AR", brandName: "Banquito" };
 
 /** API falsa: /trigger guarda las preguntas; el snapshot queda listo cuando se llama a setReady(). */
-function fakeApi(opts: { status?: number; body?: string } = {}) {
+function fakeApi(opts: { status?: number; body?: string; failDataset?: string } = {}) {
   const calls: { url: string; body: { input: { prompt: string }[] } | undefined }[] = [];
-  let inputs: { prompt: string }[] = [];
-  let ready = false;
-  const records = () =>
-    inputs.map((inp, i) => ({
+  // Un snapshot por dataset (cada motor tiene el suyo).
+  const snaps = new Map<string, { prompt: string }[]>();
+  const ready = new Set<string>();
+  const records = (id: string) =>
+    (snaps.get(id) ?? []).map((inp, i) => ({
       prompt: inp.prompt,
       answer_text: i % 2 === 0 ? "Te recomiendo Banquito y Rival Uno." : "Rival Uno y Rival Dos son los más usados.",
       citations: [{ url: `https://${DOMAIN}/tasas`, title: "Banquito" }],
@@ -41,14 +42,18 @@ function fakeApi(opts: { status?: number; body?: string } = {}) {
     const path = new URL(url).pathname;
     if (opts.status) return res(opts.body ?? { error: "x" }, opts.status);
     if (path === "/datasets/v3/trigger") {
-      inputs = body.input;
-      return res({ snapshot_id: "s_chk" });
+      const ds = new URL(url).searchParams.get("dataset_id") ?? "";
+      if (ds === opts.failDataset) return res("Service Unavailable", 503);
+      const id = ds === "gd_m7aof0k82r803d5bjm" ? "s_chk" : `s_${ds}`;
+      snaps.set(id, body.input);
+      return res({ snapshot_id: id });
     }
-    if (path.startsWith("/datasets/v3/progress/")) return res({ status: ready ? "ready" : "running" });
-    if (path.startsWith("/datasets/v3/snapshot/")) return ready ? res(records()) : res({ status: "building" }, 202);
+    const id = path.split("/").pop()!;
+    if (path.startsWith("/datasets/v3/progress/")) return res({ status: ready.has(id) ? "ready" : "running" });
+    if (path.startsWith("/datasets/v3/snapshot/")) return ready.has(id) ? res(records(id)) : res({ status: "building" }, 202);
     return res({}, 404);
   };
-  return { f, calls, setReady: () => (ready = true) };
+  return { f, calls, setReady: (id = "s_chk") => ready.add(id) };
 }
 
 test("de punta a punta: el chequeo queda pendiente, la página lo encuentra y se completa en la misma fila", async () => {
@@ -56,7 +61,7 @@ test("de punta a punta: el chequeo queda pendiente, la página lo encuentra y se
   const r = await checker.runChecker(input, { fetch: api.f });
   assert.equal(r.method, "brightdata");
   assert.equal(r.engine, "chatgpt");
-  assert.equal(r.pending?.snapshotId, "s_chk", "vuelve enseguida, sin esperar la respuesta");
+  assert.deepEqual(r.pending?.snapshots, [{ engine: "chatgpt", snapshotId: "s_chk" }], "vuelve enseguida, sin esperar la respuesta");
   assert.equal(api.calls.length, 1, "un solo envío para las 5 preguntas");
   assert.equal(api.calls[0].body?.input.length, 5);
   const ev = await dbm.one<{ props: string }>("SELECT props FROM events WHERE name = 'checker_brightdata'");
@@ -68,7 +73,7 @@ test("de punta a punta: el chequeo queda pendiente, la página lo encuentra y se
   // Lo que hace /auditoria/[token] mientras Bright Data trabaja: la encuentra pendiente (no 404).
   const first = await checker.loadCheckerAudit(saved.shareToken, { fetch: api.f, retries: 0 });
   assert.ok(first, "una auditoría pendiente se encuentra");
-  assert.equal(first.result.pending?.snapshotId, "s_chk");
+  assert.equal(first.result.pending?.snapshots?.[0].snapshotId, "s_chk");
   assert.equal(first.result.total, 0);
 
   // Bright Data termina: la próxima carga completa la misma fila.
@@ -124,4 +129,69 @@ test("tope de chequeos gratis por día con Bright Data", async () => {
   } finally {
     delete process.env.CHECKER_BRIGHTDATA_MAX_PER_DAY;
   }
+});
+
+test("varios motores: un lote por motor, cada uno cuenta para el tope y se completan por separado", async () => {
+  const api = fakeApi();
+  const r = await checker.runChecker({ ...input, engines: ["chatgpt", "gemini", "perplexity"] }, { fetch: api.f });
+  assert.equal(r.method, "brightdata");
+  assert.deepEqual(r.engines, ["chatgpt", "gemini", "perplexity"]);
+  assert.equal(r.engineLabel, "ChatGPT, Gemini y Perplexity");
+  assert.equal(api.calls.length, 3, "un envío por motor");
+  assert.equal(r.questions.length, 15);
+  const evs = await dbm.all<{ props: string }>("SELECT props FROM events WHERE name = 'checker_brightdata'");
+  assert.equal(evs.length, 3);
+  assert.equal(evs.reduce((n, e) => n + JSON.parse(e.props).n, 0), 15, "15 registros contra el tope diario");
+
+  const saved = await checker.saveAudit("checker", r, { domain: DOMAIN });
+  // Termina solo Gemini: se completa esa parte y los otros siguen pendientes.
+  api.setReady("s_gd_mbz66arm2mf9cu856y");
+  const part = await checker.loadCheckerAudit(saved.shareToken, { fetch: api.f, retries: 0 });
+  assert.deepEqual(part!.result.pending?.snapshots?.map((s) => s.engine), ["chatgpt", "perplexity"]);
+  assert.equal(part!.result.total, 5);
+  assert.equal(part!.result.questions.filter((q) => q.engine === "gemini" && !q.error).length, 5);
+
+  api.setReady("s_chk");
+  api.setReady("s_gd_m7dhdot1vw9a7gc1n");
+  const done = await checker.loadCheckerAudit(saved.shareToken, { fetch: api.f, retries: 0 });
+  assert.equal(done!.result.pending, null);
+  assert.equal(done!.result.total, 15);
+  assert.equal(done!.result.mentioned, 9);
+  assert.deepEqual(done!.result.byEngine?.map((e) => [e.engine, e.mentioned, e.total]), [["chatgpt", 3, 5], ["gemini", 3, 5], ["perplexity", 3, 5]]);
+});
+
+test("varios motores: si uno falla al enviarse, los demás siguen", async () => {
+  const api = fakeApi({ failDataset: "gd_mbz66arm2mf9cu856y" });
+  const r = await checker.runChecker({ ...input, engines: ["chatgpt", "gemini"] }, { fetch: api.f });
+  assert.equal(r.method, "brightdata");
+  assert.deepEqual(r.pending?.snapshots?.map((s) => s.engine), ["chatgpt"]);
+  const gem = r.questions.filter((q) => q.engine === "gemini");
+  assert.equal(gem.length, 5);
+  assert.match(gem[0].error ?? "", /No pudimos consultar a Gemini/);
+});
+
+test("varios motores con poco cupo: se consultan solo los que entran", async () => {
+  process.env.CHECKER_BRIGHTDATA_MAX_PER_DAY = "2";
+  try {
+    const api = fakeApi();
+    const r = await checker.runChecker({ ...input, engines: ["perplexity", "gemini", "chatgpt"] }, { fetch: api.f });
+    assert.deepEqual(r.engines, ["perplexity", "gemini"]);
+    assert.equal(api.calls.length, 2);
+    const r2 = await checker.runChecker({ ...input, engines: ["chatgpt"] }, { fetch: api.f });
+    assert.equal(r2.method, undefined, "cupo agotado");
+    assert.equal(api.calls.length, 2);
+  } finally {
+    delete process.env.CHECKER_BRIGHTDATA_MAX_PER_DAY;
+  }
+});
+
+test("chequeos viejos de un solo motor (pending con snapshotId) se siguen completando", async () => {
+  const api = fakeApi();
+  const r = await checker.runChecker(input, { fetch: api.f });
+  const legacy = { ...r, engines: undefined, questions: r.questions.map(({ engine: _e, ...q }) => q), pending: { snapshotId: "s_chk", since: r.pending!.since } };
+  assert.equal(await checker.resumeChecker(legacy, api.f), null, "sigue esperando");
+  api.setReady();
+  const done = await checker.resumeChecker(legacy, api.f);
+  assert.equal(done?.pending, null);
+  assert.equal(done?.total, 5);
 });
