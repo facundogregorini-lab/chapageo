@@ -87,7 +87,7 @@ export function brightDataToken(env: NodeJS.ProcessEnv = process.env): string | 
 export function brightDataConfig(id: BrightDataCollectorId, env: NodeJS.ProcessEnv = process.env): BrightDataConfig | { missing: string } {
   const spec = SPECS[id];
   const token = brightDataToken(env);
-  if (!token) return { missing: "Falta BRIGHTDATA_API_KEY en las variables de entorno." };
+  if (!token) return { missing: "Falta la key del servicio de captura (BRIGHTDATA_API_KEY) en las variables de entorno." };
   const datasetId = env[spec.datasetEnv]?.trim() || spec.defaultDataset;
   const cost = Number(env.BRIGHTDATA_COST_PER_RECORD);
   return {
@@ -195,17 +195,17 @@ async function request(f: FetchLike, token: string, method: "GET" | "POST", path
       const ra = retryAfter(res.headers?.get("retry-after"));
       if (res.ok) return { status: res.status, data: parseBody(text), retryAfterMs: ra };
       // 401/403: key inválida o sin permisos; 400/404: pedido mal armado. Reintentar no sirve.
-      err = new BrightDataError(`Bright Data respondió ${res.status}: ${text.slice(0, 300)}`, res.status, res.status === 429 || res.status >= 500);
+      err = new BrightDataError(`El servicio de captura respondió ${res.status}: ${text.slice(0, 300)}`, res.status, res.status === 429 || res.status >= 500);
       if (attempt < maxRetries && retryable(res.status)) {
         await sleep(Math.min(ra ?? base * 2 ** attempt, 10_000), o.signal);
         continue;
       }
     } catch (e) {
-      if (o.signal?.aborted) throw new BrightDataError("Se canceló el pedido a Bright Data.", 0, true, "interrumpido");
+      if (o.signal?.aborted) throw new BrightDataError("Se canceló el pedido al servicio de captura.", 0, true, "interrumpido");
       const timedOut = timer.signal.aborted;
       err = timedOut
-        ? new BrightDataError(`Bright Data no respondió en ${Math.round(timeoutMs / 1000)} s.`, 0, true, "timeout")
-        : new BrightDataError(`No se pudo conectar con Bright Data: ${(e as Error).message}`, 0, true);
+        ? new BrightDataError(`El servicio de captura no respondió en ${Math.round(timeoutMs / 1000)} s.`, 0, true, "timeout")
+        : new BrightDataError(`No se pudo conectar con el servicio de captura: ${(e as Error).message}`, 0, true);
       // Un POST cortado por red pudo haber llegado: no se repite (lo reintenta la cola, con su tope).
       if (!isPost && attempt < maxRetries) {
         await sleep(base * 2 ** attempt, o.signal);
@@ -240,7 +240,7 @@ export async function scrapeSync(f: FetchLike, cfg: BrightDataConfig, inputs: Br
   const r = await request(f, cfg.token, "POST", `/datasets/v3/scrape?${q}`, { input: inputs }, { ...o, timeoutMs: o.timeoutMs ?? 90_000 });
   const snap = !Array.isArray(r.data) && r.data && typeof r.data === "object" ? (r.data as { snapshot_id?: unknown }).snapshot_id : undefined;
   if (r.status === 202 || typeof snap === "string") {
-    if (typeof snap !== "string" || !snap) throw new BrightDataError("Bright Data pasó la consulta a segundo plano sin snapshot_id.", r.status, true);
+    if (typeof snap !== "string" || !snap) throw new BrightDataError("El servicio de captura pasó la consulta a segundo plano sin snapshot_id.", r.status, true);
     return { snapshotId: snap, retryAfterMs: r.retryAfterMs };
   }
   return { records: asRecords(r.data) };
@@ -250,7 +250,7 @@ export async function triggerSnapshot(f: FetchLike, cfg: BrightDataConfig, input
   const q = new URLSearchParams({ dataset_id: cfg.datasetId, include_errors: "true" });
   const r = await request(f, cfg.token, "POST", `/datasets/v3/trigger?${q}`, { input: inputs }, o);
   const snap = (r.data as { snapshot_id?: unknown } | null)?.snapshot_id;
-  if (typeof snap !== "string" || !snap) throw new BrightDataError("Bright Data no devolvió snapshot_id.", r.status, true);
+  if (typeof snap !== "string" || !snap) throw new BrightDataError("El servicio de captura no devolvió snapshot_id.", r.status, true);
   return snap;
 }
 
@@ -277,15 +277,15 @@ export async function waitForSnapshot(
 ): Promise<BrightDataRecord[]> {
   await sleep(Math.min(o.firstWaitMs ?? 0, Math.max(0, o.deadline - Date.now())), o.signal);
   for (;;) {
-    if (o.signal?.aborted) throw new BrightDataError("Se canceló la espera de Bright Data.", 0, true, "interrumpido");
+    if (o.signal?.aborted) throw new BrightDataError("Se canceló la espera del servicio de captura.", 0, true, "interrumpido");
     const status = await snapshotStatus(f, cfg, snapshotId, o);
     if (status === "ready") {
       const records = await downloadSnapshot(f, cfg, snapshotId, o);
       if (records) return records;
     } else if (status === "failed" || status === "canceled") {
-      throw new BrightDataError(`Bright Data marcó el snapshot ${snapshotId} como ${status === "failed" ? "fallido" : "cancelado"}.`, 200, true, "api_error");
+      throw new BrightDataError(`El servicio de captura marcó el snapshot ${snapshotId} como ${status === "failed" ? "fallido" : "cancelado"}.`, 200, true, "api_error");
     }
-    if (Date.now() >= o.deadline) throw new BrightDataError(`Bright Data no terminó a tiempo (snapshot ${snapshotId}, sigue disponible 30 días).`, 0, true, "timeout");
+    if (Date.now() >= o.deadline) throw new BrightDataError(`El servicio de captura no terminó a tiempo (snapshot ${snapshotId}, sigue disponible 30 días).`, 0, true, "timeout");
     await sleep(Math.min(o.pollMs, Math.max(0, o.deadline - Date.now())), o.signal);
   }
 }
@@ -364,11 +364,11 @@ function recordError(r: BrightDataRecord): CollectError | null {
   if (!msg && !r.error_code) return null;
   const code = String(r.error_code ?? r.error ?? "");
   const text = msg ?? code;
-  if (/captcha/i.test(text)) return { code: "captcha", message: `Bright Data: ${text}`, transient: true };
-  if (/login|sign.?in/i.test(text)) return { code: "login_requerido", message: `Bright Data: ${text}`, transient: true };
-  if (/rate|limit|quota|429/i.test(text)) return { code: "limite_de_uso", message: `Bright Data: ${text}`, transient: true };
-  if (/timeout|timed out/i.test(text)) return { code: "timeout", message: `Bright Data: ${text}`, transient: true };
-  return { code: "api_error", message: `Bright Data: ${text}`.slice(0, 400), transient: true };
+  if (/captcha/i.test(text)) return { code: "captcha", message: `Servicio de captura: ${text}`, transient: true };
+  if (/login|sign.?in/i.test(text)) return { code: "login_requerido", message: `Servicio de captura: ${text}`, transient: true };
+  if (/rate|limit|quota|429/i.test(text)) return { code: "limite_de_uso", message: `Servicio de captura: ${text}`, transient: true };
+  if (/timeout|timed out/i.test(text)) return { code: "timeout", message: `Servicio de captura: ${text}`, transient: true };
+  return { code: "api_error", message: `Servicio de captura: ${text}`.slice(0, 400), transient: true };
 }
 
 export function recordToResult(r: BrightDataRecord, id: BrightDataCollectorId, cfg: Pick<BrightDataConfig, "costPerRecord">, startedAt: number, requestedCountry: string): CollectResult {
@@ -398,7 +398,7 @@ export function recordToResult(r: BrightDataRecord, id: BrightDataCollectorId, c
       ...base,
       status: "failed",
       answerText: null,
-      error: err ?? { code: "respuesta_vacia", message: "Bright Data devolvió el registro sin texto de respuesta.", transient: true },
+      error: err ?? { code: "respuesta_vacia", message: "El servicio de captura devolvió el registro sin texto de respuesta.", transient: true },
       // Los registros con error no se cobran como exitosos.
       costUsd: 0,
     };
@@ -464,12 +464,12 @@ export async function fetchRecord(cfg: BrightDataConfig, prompt: string, o: Quer
   if ("records" in first) records = first.records;
   else {
     snapshotId = first.snapshotId;
-    o.log?.(`Bright Data pasó la consulta a segundo plano (snapshot ${snapshotId})`);
+    o.log?.(`El servicio de captura pasó la consulta a segundo plano (snapshot ${snapshotId})`);
     records = await waitForSnapshot(f, cfg, snapshotId, { ...req, pollMs: o.pollMs ?? 5000, deadline: started + maxWaitMs, firstWaitMs: first.retryAfterMs ?? undefined });
   }
   const wanted = normalizePrompt(prompt);
   const record = records.find((r) => normalizePrompt(recordPrompt(r) ?? "") === wanted) ?? records[0];
-  if (!record) throw new BrightDataError(`Bright Data no devolvió registros${snapshotId ? ` (snapshot ${snapshotId})` : ""}.`, 200, true, "respuesta_vacia");
+  if (!record) throw new BrightDataError(`El servicio de captura no devolvió registros${snapshotId ? ` (snapshot ${snapshotId})` : ""}.`, 200, true, "respuesta_vacia");
   return { record, mode: snapshotId ? "async" : "sync", snapshotId };
 }
 
@@ -501,7 +501,7 @@ export async function queryBrightData(provider: BrightDataProvider, prompt: stri
   const { record, mode, snapshotId } = await fetchRecord(cfg, prompt, o);
   const r = recordToResult(record, id, cfg, started, o.country ?? "AR");
   if (r.status !== "completed" || !r.answerText) {
-    const err = r.error ?? { code: "respuesta_vacia" as const, message: "Bright Data no devolvió texto.", transient: true };
+    const err = r.error ?? { code: "respuesta_vacia" as const, message: "El servicio de captura no devolvió texto.", transient: true };
     throw new BrightDataError(err.message, 200, err.transient, err.code);
   }
   return { provider, prompt, text: r.answerText, citations: r.citations, timestamp: r.collectedAt, model: r.modelIfVisible, mode, snapshotId, costUsd: r.costUsd ?? 0, raw: record };

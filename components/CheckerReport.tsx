@@ -29,7 +29,7 @@ export function CheckerReport({ r }: { r: CheckerResult }) {
         </div>
       ) : r.method === "brightdata" ? (
         <div className="rounded-xl border border-line bg-paper px-4 py-3 text-sm text-mute">
-          Respuestas de la <strong>interfaz web de ChatGPT</strong>, como las ve una persona, capturadas con Bright Data. Es una muestra de 5 preguntas: el
+          Respuestas de la <strong>interfaz web de ChatGPT</strong>, como las ve una persona. Es una muestra de 5 preguntas: el
           análisis completo suma más preguntas, Gemini y Perplexity, y repeticiones.
         </div>
       ) : !r.engine ? (

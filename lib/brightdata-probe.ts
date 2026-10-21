@@ -37,7 +37,7 @@ export async function probeBrightData(id: BrightDataCollectorId, opts: { fetch?:
     await setCollectorStatus(id, "available", null, "brightdata", { verified: true, details });
     return {
       ok: true,
-      message: "Funciona: Bright Data devolvió una respuesta real. El motor ya se puede elegir en los análisis.",
+      message: "Funciona: el servicio de captura devolvió una respuesta real. El motor ya se puede elegir en los análisis.",
       model: r.modelIfVisible,
       country: r.observedCountry,
       citations: r.citations.length,
@@ -46,7 +46,7 @@ export async function probeBrightData(id: BrightDataCollectorId, opts: { fetch?:
       seconds: Math.round(r.duration / 1000),
     };
   }
-  const msg = r.error?.message ?? "Bright Data no devolvió texto.";
+  const msg = r.error?.message ?? "El servicio de captura no devolvió texto.";
   await setCollectorStatus(id, r.error?.code === "sin_credenciales" ? "unavailable" : "unverified", `Última prueba falló: ${msg}`.slice(0, 400), "brightdata", { details });
   return { ok: false, message: msg, seconds: Math.round(r.duration / 1000) };
 }

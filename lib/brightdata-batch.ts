@@ -72,7 +72,7 @@ export async function dispatchRun(runId: string, opts: Opts = {}): Promise<numbe
     const room = dailyCap() - (await usedToday());
     if (room <= 0) {
       await run("UPDATE runs SET status_detail = ? WHERE id = ?", [
-        `Se alcanzó el tope diario de ${dailyCap()} consultas a Bright Data (BRIGHTDATA_MAX_RECORDS_PER_DAY). El resto sigue en cola para mañana.`,
+        `Se alcanzó el tope diario de ${dailyCap()} consultas de captura. El resto sigue en cola para mañana.`,
         runId,
       ]);
       return sent;
@@ -149,7 +149,7 @@ export async function collectRun(runId: string, opts: Opts = {}): Promise<number
     if (lease.startsWith(PENDING_PREFIX)) {
       // El envío se cortó antes de guardar el snapshot: se reintenta.
       if (age > 3 * 60_000) {
-        await failAll(jobs, id, { code: "interrumpido", message: "El envío a Bright Data se interrumpió; se reintenta.", transient: true }, startedMs);
+        await failAll(jobs, id, { code: "interrumpido", message: "El envío al servicio de captura se interrumpió; se reintenta.", transient: true }, startedMs);
         finished += jobs.length;
       }
       continue;
@@ -175,13 +175,13 @@ export async function collectRun(runId: string, opts: Opts = {}): Promise<number
           const st = await finishJob(job, res);
           if (st === "completed") await setCollectorStatus(id, "available", null, "brightdata", { verified: true, details: { snapshot: snap } });
         }
-        await failAll(unmatched, id, { code: "respuesta_vacia", message: `Bright Data no devolvió resultado para esta pregunta (snapshot ${snap}).`, transient: true }, startedMs);
+        await failAll(unmatched, id, { code: "respuesta_vacia", message: `El servicio de captura no devolvió resultado para esta pregunta (snapshot ${snap}).`, transient: true }, startedMs);
         finished += jobs.length;
       } else if (status === "failed") {
-        await failAll(jobs, id, { code: "api_error", message: `Bright Data marcó el snapshot ${snap} como fallido.`, transient: true }, startedMs);
+        await failAll(jobs, id, { code: "api_error", message: `El servicio de captura marcó el snapshot ${snap} como fallido.`, transient: true }, startedMs);
         finished += jobs.length;
       } else if (age > maxWaitMs()) {
-        await failAll(jobs, id, { code: "timeout", message: `Bright Data no terminó en ${Math.round(maxWaitMs() / 60000)} min (snapshot ${snap}).`, transient: true }, startedMs);
+        await failAll(jobs, id, { code: "timeout", message: `El servicio de captura no terminó en ${Math.round(maxWaitMs() / 60000)} min (snapshot ${snap}).`, transient: true }, startedMs);
         finished += jobs.length;
       } else {
         await run("UPDATE responses SET heartbeat_at = ? WHERE lease_id = ? AND status = 'running'", [now(), lease]);

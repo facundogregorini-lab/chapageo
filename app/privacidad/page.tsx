@@ -64,7 +64,7 @@ export default function Page() {
         </li>
         <li>
           <strong>Asistentes de IA:</strong> para medir visibilidad, enviamos las preguntas aprobadas a servicios como ChatGPT (OpenAI), Gemini
-          (Google), Claude (Anthropic) o Perplexity, por su interfaz web o su API. Las preguntas pueden incluir el nombre de tu cliente, su rubro y sus
+          (Google), Claude (Anthropic) o Perplexity, por su interfaz web o su API, directamente o a través de proveedores de captura web que actúan por nuestra cuenta. Las preguntas pueden incluir el nombre de tu cliente, su rubro y sus
           competidores. Para sugerir preguntas, también podemos enviar texto público del sitio de tu cliente. No enviamos tus datos de cuenta.
         </li>
         <li>
