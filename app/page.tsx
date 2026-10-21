@@ -1,8 +1,9 @@
 import Link from "next/link";
-import { PricingCards } from "@/components/PricingCards";
-import { SiteFooter, SiteHeader } from "@/components/SiteChrome";
-import { TrackView } from "@/components/Track";
-import { Bar, EngineBadge } from "@/components/ui";
+import "./landing.css";
+import { LandingAmbient, LandingFooter, LandingNav } from "@/components/landing/LandingChrome";
+import { LandingFx } from "@/components/landing/LandingFx";
+import { TrackLink, TrackView } from "@/components/Track";
+import { ENGINES, ENGINE_IDS, PLANS, payLink, type PlanId } from "@/lib/config";
 
 const FAQ = [
   {
@@ -31,267 +32,453 @@ const FAQ = [
   },
 ];
 
-export default function Home() {
-  return (
-    <>
-      <TrackView name="landing_view" />
-      <SiteHeader />
-      <main>
-        {/* HERO */}
-        <section className="relative overflow-hidden">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(60%_50%_at_75%_0%,rgba(59,159,224,0.18),transparent_70%),radial-gradient(40%_40%_at_10%_30%,rgba(242,169,0,0.10),transparent_70%)]" />
-          <div className="relative mx-auto grid max-w-6xl gap-12 px-4 pb-20 pt-16 lg:grid-cols-[1.05fr_0.95fr] lg:pt-24">
-            <div>
-              <div className="eyebrow">GEO · AEO para Argentina</div>
-              <h1 className="mt-4 text-4xl font-bold leading-[1.05] tracking-tight sm:text-5xl lg:text-6xl">
-                Cuando le preguntan a la IA por tu rubro, <span className="text-celeste">¿te nombra a vos</span> o a tu competencia?
-              </h1>
-              <p className="mt-5 max-w-xl text-lg text-mute">
-                ChapaGEO mide qué responden ChatGPT, Gemini, Perplexity y Claude sobre tu mercado, con las respuestas originales a la vista, y te dice
-                qué cambiar para aparecer.
-              </p>
-              <form action="/checker" className="mt-8 flex max-w-xl flex-col gap-2 rounded-2xl border border-line bg-white p-2 shadow-sm sm:flex-row">
-                <input name="d" required placeholder="tumarca.com.ar" className="input flex-1 border-0 focus:ring-0" aria-label="Dominio de tu marca" />
-                <input name="c" required placeholder="Rubro (ej: estudio contable)" className="input flex-1 border-0 focus:ring-0 sm:border-l sm:border-line" aria-label="Rubro" />
-                <button className="btn-primary">Medir gratis</button>
-              </form>
-              <p className="mt-3 text-xs text-mute">Sin registro · Resultado en menos de un minuto · 5 preguntas reales de tu rubro</p>
-              <div className="mt-6 flex flex-wrap items-center gap-4 text-sm">
-                <Link href="/demo" className="font-semibold text-ink underline decoration-celeste decoration-2 underline-offset-4">
-                  Ver el panel con datos de ejemplo →
-                </Link>
-                <Link href="/precios" className="font-semibold text-mute hover:text-ink">
-                  Diagnóstico 48 h por US$149
-                </Link>
-              </div>
-            </div>
+const GAP = [
+  ["Top 3", "Respuestas, no resultados", "El asistente arma una recomendación corta con dos o tres marcas. Quedar cuarto es casi como no aparecer."],
+  ["≠ SEO", "Tu ranking no se traslada solo", "Los motores combinan búsqueda, reseñas, foros y medios. Estar primero en Google ayuda, pero no alcanza."],
+  ["1.º", "Casi nadie lo mide todavía", "La mayoría de las marcas argentinas no sabe qué dice la IA de ellas. Medirlo primero es ventaja."],
+];
 
-            {/* Mock del panel */}
-            <div className="relative">
-              <div className="card overflow-hidden shadow-[0_30px_80px_-30px_rgba(11,18,32,0.35)]">
-                <div className="flex items-center justify-between border-b border-line px-5 py-3">
-                  <div className="text-sm font-semibold">Pampa CRM · Argentina</div>
-                  <span className="text-xs text-mute">Corte semanal · 108 respuestas</span>
+const LOOP = [
+  ["Elegimos las preguntas", "20 preguntas que haría tu cliente, con y sin tu marca. Las sugerimos con IA y las aprobás vos."],
+  ["Las corremos en cada motor", "Con búsqueda web y contexto de Argentina, 3 veces cada una para ver la variación."],
+  ["Ves la evidencia", "Tasa de mención, share of voice, posición, sentimiento y las fuentes que cita cada motor."],
+  ["Ejecutás las mejoras", "Un backlog priorizado con borradores listos: páginas, FAQ, fuentes externas y ajustes técnicos."],
+];
+
+const FEATS = [
+  ["Panel multi-cliente", "Todas tus marcas en un solo lugar, con su tasa de mención y su última corrida."],
+  ["Auditorías de prospección", "Ingresás el dominio de un prospecto y en un minuto tenés un informe para mandarle."],
+  ["Reportes white-label", "Link privado con tu logo y tus colores, listo para imprimir o exportar en CSV."],
+  ["Backlog para el equipo", "Cada acción con responsable, estado, evidencia y borrador para producir."],
+  ["Competidores y share of voice", "Mirá quién gana cada pregunta de tu rubro, en qué posición y con qué tono."],
+  ["Fuentes que pesan", "Descubrí qué sitios, reseñas y foros usa la IA para recomendar a tu competencia."],
+  ["Auditoría técnica", "Revisamos si tu robots.txt bloquea a los bots de ChatGPT, Perplexity o Claude, y qué le falta a tu home."],
+];
+
+const BRAND_POINTS = [
+  "Tasa de mención y share of voice frente a tus competidores",
+  "Las respuestas originales y las fuentes que cita cada motor",
+  "Backlog de mejoras con borradores listos para publicar",
+  "Revisión de robots.txt para los bots de IA",
+  "Empezá con la prueba gratis o con el diagnóstico de 48 h",
+];
+
+const PLAN_ORDER: PlanId[] = ["diagnostico", "marca", "agencia"];
+const PLAN_CTA: Record<string, string> = {
+  diagnostico: "Quiero mi diagnóstico",
+  marca: "Empezar monitoreo",
+  agencia: "Hablar como agencia",
+};
+
+export default function Home() {
+  const engines = ENGINE_IDS.map((id) => ENGINES[id]);
+  const marquee = [...engines, ...engines, ...engines, ...engines];
+  const trial = PLANS.prueba;
+  return (
+    <div className="lx">
+      <TrackView name="landing_view" />
+      <LandingFx />
+      <LandingAmbient />
+      <LandingNav />
+
+      <main>
+        {/* HERO: checker gratis */}
+        <section className="lx-hero lx-wrap" id="top">
+          <div>
+            <div className="lx-badge lx-mono">
+              <span className="lx-dot" />
+              GEO · AEO para Argentina
+            </div>
+            <h1 className="lx-h1">
+              ¿La IA te recomienda a vos o a tu <span className="lx-sweep">competencia?</span>
+            </h1>
+            <p className="lx-hero-lead">
+              ChapaGEO mide qué responden ChatGPT, Gemini, Perplexity y Claude sobre tu mercado, con las respuestas originales a la vista, y te dice
+              qué cambiar para aparecer. Probalo ahora con tu dominio.
+            </p>
+            <form action="/checker" className="lx-checkform">
+              <input name="d" required placeholder="tumarca.com.ar" aria-label="Dominio de tu marca" autoComplete="url" />
+              <input name="c" required placeholder="Rubro (ej: estudio contable)" aria-label="Rubro" />
+              <button className="lx-btn lx-btn-primary">Medir gratis</button>
+            </form>
+            <div className="lx-micro lx-mono">Sin registro · Resultado en menos de un minuto · 5 preguntas reales de tu rubro</div>
+            <div className="lx-hero-links">
+              <Link href="/demo" className="lx-brand-link">
+                Ver el panel con datos de ejemplo <span aria-hidden>→</span>
+              </Link>
+              <Link href="/precios" className="lx-plain-link">
+                Diagnóstico 48 h por US${PLANS.diagnostico.priceUsd}
+              </Link>
+            </div>
+            <div className="lx-definition">
+              <p>
+                ChapaGEO es la herramienta de GEO para marcas y agencias de Argentina: corre preguntas reales de tu rubro en cada asistente, guarda
+                lo que responde y te muestra a quién nombra y qué fuentes cita.
+              </p>
+              <p>
+                GEO / AEO (Generative Engine Optimization / Answer Engine Optimization) es trabajar para que tu marca aparezca dentro de las
+                respuestas de la IA, no solo en la lista de resultados de Google.
+              </p>
+            </div>
+          </div>
+
+          <div className="lx-mock-wrap" aria-hidden>
+            <div className="lx-tilt">
+              <div className="lx-mock">
+                <div className="lx-mock-side">
+                  <div className="lx-mock-side-brand">
+                    <span className="lx-logo-mark" />
+                    ChapaGEO
+                  </div>
+                  <div className="is-active">Panel</div>
+                  <div>Preguntas</div>
+                  <div>Share of voice</div>
+                  <div>Fuentes</div>
+                  <div>Acciones</div>
                 </div>
-                <div className="grid grid-cols-3 gap-px bg-line">
-                  {[
-                    ["Tasa de mención", "43%", "47 de 108"],
-                    ["Share of voice", "18%", "vs. 3 competidores"],
-                    ["Te citan", "18%", "19 respuestas"],
-                  ].map(([l, v, h]) => (
-                    <div key={l} className="bg-white p-4">
-                      <div className="text-[11px] font-semibold text-mute">{l}</div>
-                      <div className="mt-1 text-2xl font-bold">{v}</div>
-                      <div className="text-[11px] text-mute">{h}</div>
+                <div className="lx-mock-main">
+                  <div className="lx-mock-title">
+                    <div>Tasa de mención</div>
+                    <div className="lx-mono">Pampa CRM · ejemplo</div>
+                  </div>
+                  <div className="lx-mock-big">
+                    <span>43%</span>
+                    <span className="lx-mono">47 de 108 respuestas</span>
+                  </div>
+                  <svg className="lx-mock-chart" viewBox="0 0 400 110" fill="none">
+                    <line x1="0" y1="20" x2="400" y2="20" stroke="#ffffff0d" />
+                    <line x1="0" y1="55" x2="400" y2="55" stroke="#ffffff0d" />
+                    <line x1="0" y1="90" x2="400" y2="90" stroke="#ffffff0d" />
+                    <polyline className="l1" points="0,30 50,34 100,28 150,36 200,30 250,33 300,26 350,30 400,28" stroke="#ffffff38" strokeWidth="1.5" />
+                    <polyline className="l2" points="0,62 50,58 100,66 150,60 200,64 250,58 300,62 350,56 400,58" stroke="#ffffff26" strokeWidth="1.5" />
+                    <polyline className="l3" points="0,98 50,96 100,92 150,90 200,80 250,70 300,58 350,46 400,36" stroke="#2dd4bf" strokeWidth="2.5" />
+                    <circle cx="400" cy="36" r="4" fill="#2dd4bf" />
+                  </svg>
+                  <div className="lx-mock-kpis">
+                    <div>
+                      <div>Share of voice</div>
+                      <div>18%</div>
+                      <div>vs. 3 competidores</div>
                     </div>
-                  ))}
-                </div>
-                <div className="space-y-3 p-5">
-                  {[
-                    ["gemini", 0.64],
-                    ["perplexity", 0.39],
-                    ["chatgpt", 0.28],
-                  ].map(([e, v]) => (
-                    <div key={e as string} className="flex items-center gap-3">
-                      <div className="w-28">
-                        <EngineBadge engine={e as "gemini"} />
-                      </div>
-                      <Bar value={v as number} />
-                      <div className="w-10 text-right text-xs font-semibold">{Math.round((v as number) * 100)}%</div>
+                    <div>
+                      <div>Te citan</div>
+                      <div>19</div>
+                      <div>respuestas</div>
                     </div>
-                  ))}
-                </div>
-                <div className="border-t border-line bg-paper/60 p-5">
-                  <div className="text-[11px] font-semibold uppercase tracking-wide text-mute">ChatGPT · «¿Cuál es el mejor CRM para pymes en Argentina?»</div>
-                  <p className="mt-2 text-sm leading-relaxed">
-                    1. <mark className="rounded bg-sol-50 px-0.5 text-[#8a5a00]">Andes CRM</mark>: muy recomendada por su facilidad de uso. 2.{" "}
-                    <mark className="rounded bg-sol-50 px-0.5 text-[#8a5a00]">Ceibo Soft</mark>: reconocida en el mercado local. 3.{" "}
-                    <mark className="rounded bg-celeste-100 px-0.5 text-celeste-700">Pampa CRM</mark>: una alternativa a considerar…
-                  </p>
+                    <div className="is-accent">
+                      <div>Acciones</div>
+                      <div>6</div>
+                      <div>con evidencia</div>
+                    </div>
+                  </div>
                 </div>
               </div>
-              <div className="absolute -bottom-5 -left-4 hidden rounded-xl border border-line bg-white px-4 py-3 text-sm shadow-lg sm:block">
-                <div className="text-[11px] font-semibold text-mute">Acción sugerida</div>
-                <div className="font-semibold">Conseguí presencia en g2.com</div>
+              <div className="lx-chip-pos lx-chip-a">
+                <div className="lx-chip">
+                  <span className="lx-dot" />
+                  <div>
+                    <div className="lx-chip-title">Gemini te nombra</div>
+                    <div className="lx-chip-sub lx-mono">Posición #2</div>
+                  </div>
+                </div>
+              </div>
+              <div className="lx-chip-pos lx-chip-b">
+                <div className="lx-chip">
+                  <div className="lx-chip-title">Acción sugerida</div>
+                  <div className="lx-chip-sub lx-mono">Conseguí presencia en g2.com</div>
+                </div>
               </div>
             </div>
           </div>
         </section>
 
         {/* MOTORES */}
-        <section className="border-y border-line bg-white">
-          <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-center gap-x-10 gap-y-3 px-4 py-6 text-sm font-semibold text-mute">
-            <span className="text-xs uppercase tracking-[0.14em]">Medimos en</span>
-            <EngineBadge engine="chatgpt" />
-            <EngineBadge engine="gemini" />
-            <EngineBadge engine="perplexity" />
-            <EngineBadge engine="claude" />
+        <div className="lx-engines">
+          <p className="lx-engines-label lx-mono">Medimos en los asistentes que más se usan</p>
+          <div className="lx-engines-track">
+            <ul className="lx-engines-row">
+              {marquee.map((e, i) => (
+                <li key={i} aria-hidden={i >= engines.length}>
+                  <span className="lx-dot" style={{ background: e.color }} />
+                  {e.label}
+                </li>
+              ))}
+            </ul>
           </div>
-        </section>
+        </div>
 
-        {/* POR QUÉ */}
-        <section className="mx-auto max-w-6xl px-4 py-20">
-          <div className="max-w-2xl">
-            <div className="eyebrow">La brecha</div>
-            <h2 className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">La IA no te muestra diez links. Nombra a dos o tres marcas.</h2>
-            <p className="mt-4 text-mute">
+        {/* LA BRECHA */}
+        <section className="lx-section lx-wrap">
+          <div className="lx-head-row" data-rv>
+            <div>
+              <div className="lx-eyebrow lx-mono">La brecha</div>
+              <h2 className="lx-h2">La IA no te muestra diez links. Nombra a dos o tres marcas.</h2>
+            </div>
+            <p className="lx-lead">
               Cada vez más gente le pide recomendaciones a un asistente antes de comprar. Si no estás en esa respuesta, no estás en la conversación,
               aunque tengas buen SEO.
             </p>
           </div>
-          <div className="mt-10 grid gap-4 md:grid-cols-3">
-            {[
-              ["Respuestas, no resultados", "El asistente arma una recomendación corta. Quedar cuarto es casi como no aparecer."],
-              ["Tu ranking no se traslada solo", "Los motores combinan búsqueda, reseñas, foros y medios. Estar primero en Google ayuda, pero no alcanza."],
-              ["Casi nadie lo mide todavía", "La mayoría de las marcas argentinas no sabe qué dice la IA de ellas. Medirlo primero es ventaja."],
-            ].map(([t, d]) => (
-              <div key={t} className="card p-6">
-                <div className="text-lg font-bold">{t}</div>
-                <p className="mt-2 text-sm text-mute">{d}</p>
+          <div className="lx-stats">
+            {GAP.map(([v, t, d], i) => (
+              <div key={t} className="lx-card lx-card-hover lx-stat" data-spot data-rv style={{ ["--rv-delay" as string]: `${i * 0.1}s` }}>
+                <div className="lx-spl" />
+                <div className="lx-stat-rule" />
+                <div className="lx-stat-value">{v}</div>
+                <h3>{t}</h3>
+                <p>{d}</p>
               </div>
             ))}
           </div>
         </section>
 
         {/* CÓMO FUNCIONA */}
-        <section id="como-funciona" className="bg-ink text-white">
-          <div className="mx-auto max-w-6xl px-4 py-20">
-            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-celeste">Cómo funciona</div>
-            <h2 className="mt-3 max-w-2xl text-3xl font-bold tracking-tight sm:text-4xl">Medir, entender, mejorar y volver a medir.</h2>
-            <div className="mt-12 grid gap-8 md:grid-cols-4">
-              {[
-                ["01", "Elegimos las preguntas", "20 preguntas que haría tu cliente, con y sin tu marca. Las sugerimos con IA y las aprobás vos."],
-                ["02", "Las corremos en cada motor", "Con búsqueda web y contexto de Argentina, 3 veces cada una para ver la variación."],
-                ["03", "Ves la evidencia", "Tasa de mención, share of voice, posición, sentimiento y las fuentes que cita cada motor."],
-                ["04", "Ejecutás las mejoras", "Un backlog priorizado con borradores listos: páginas, FAQ, fuentes externas y ajustes técnicos."],
-              ].map(([n, t, d]) => (
-                <div key={n}>
-                  <div className="text-sm font-bold text-sol">{n}</div>
-                  <div className="mt-2 text-lg font-bold">{t}</div>
-                  <p className="mt-2 text-sm text-white/70">{d}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        {/* METODOLOGÍA / DIFERENCIAL */}
-        <section id="metodologia" className="mx-auto max-w-6xl px-4 py-20">
-          <div className="grid gap-12 lg:grid-cols-2">
+        <section id="como-funciona" className="lx-section lx-wrap">
+          <div className="lx-head-row" data-rv>
             <div>
-              <div className="eyebrow">Sin humo</div>
-              <h2 className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">Números que podés auditar.</h2>
-              <p className="mt-4 text-mute">
-                Las respuestas de IA cambian de una consulta a otra. Por eso no te damos un “score mágico”: te mostramos cuántas respuestas te
-                nombran sobre cuántas medimos, en qué motor, con qué fuentes y el texto exacto.
-              </p>
-              <ul className="mt-6 space-y-3 text-sm">
-                {[
-                  "Cada métrica con numerador y denominador. Los errores técnicos se informan aparte.",
-                  "Respuesta original, fecha UTC, motor y modelo guardados por cada corrida.",
-                  "Panel de preguntas fijo para comparar antes y después de cada cambio.",
-                  "No prometemos el primer puesto en ChatGPT ni “indexación garantizada”.",
-                ].map((t) => (
-                  <li key={t} className="flex gap-3">
-                    <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full bg-ok-50 text-xs font-bold text-ok">✓</span>
-                    {t}
-                  </li>
-                ))}
-              </ul>
+              <div className="lx-eyebrow lx-mono">Cómo funciona</div>
+              <h2 className="lx-h2">Medir, entender, mejorar y volver a medir</h2>
             </div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              {[
-                ["Hecho para Argentina", "Preguntas en español rioplatense, por país y ciudad. Pagás en pesos con Mercado Pago."],
-                ["Software + criterio", "El diagnóstico incluye una sesión con alguien que entiende de contenido y SEO, no solo un PDF."],
-                ["Fuentes que pesan", "Descubrí qué sitios, reseñas y foros usa la IA para recomendar a tu competencia."],
-                ["Auditoría técnica", "Revisamos si tu robots.txt bloquea a los bots de ChatGPT, Perplexity o Claude, y qué le falta a tu home."],
-              ].map(([t, d]) => (
-                <div key={t} className="card p-5">
-                  <div className="font-bold">{t}</div>
-                  <p className="mt-1.5 text-sm text-mute">{d}</p>
-                </div>
+            <p className="lx-lead">
+              Un panel fijo de preguntas para comparar antes y después de cada cambio. Ves qué responde cada motor, a quién nombra y por qué.
+            </p>
+          </div>
+          <div className="lx-loop">
+            <div className="lx-loop-track" />
+            <div className="lx-loop-line" />
+            <ol className="lx-loop-list">
+              {LOOP.map(([t, d], i) => (
+                <li key={t} data-rv style={{ ["--rv-delay" as string]: `${i * 0.12}s` }}>
+                  <div className="lx-node" />
+                  <div className="lx-loop-n lx-mono">0{i + 1}</div>
+                  <h3>{t}</h3>
+                  <p>{d}</p>
+                </li>
               ))}
-            </div>
+            </ol>
           </div>
         </section>
 
         {/* AGENCIAS */}
-        <section id="agencias" className="border-y border-line bg-white">
-          <div className="mx-auto grid max-w-6xl gap-10 px-4 py-20 lg:grid-cols-[0.9fr_1.1fr]">
+        <section id="agencias" className="lx-section lx-wrap">
+          <div className="lx-head-row" data-rv>
             <div>
-              <div className="eyebrow">Para agencias</div>
-              <h2 className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">Sumá GEO a tu propuesta sin armar un equipo nuevo.</h2>
-              <p className="mt-4 text-mute">
-                Tus clientes ya te preguntan por ChatGPT. Llegá a la reunión con datos de su marca y de su competencia, y entregá reportes con tu
-                identidad.
-              </p>
-              <Link href="/contacto?oferta=agencia" className="btn-primary mt-6">
-                Quiero probarlo con mi agencia
-              </Link>
+              <div className="lx-eyebrow lx-mono">Para agencias</div>
+              <h2 className="lx-h2">Sumá GEO a tu propuesta sin armar un equipo nuevo</h2>
             </div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              {[
-                ["Panel multi-cliente", "Todas tus marcas en un solo lugar, con su tasa de mención y su última corrida."],
-                ["Auditorías de prospección", "Ingresás el dominio de un prospecto y en un minuto tenés un informe para mandarle."],
-                ["Reportes white-label", "Link privado con tu logo y tus colores, listo para imprimir o exportar en CSV."],
-                ["Backlog para el equipo", "Cada acción con responsable, estado, evidencia y borrador para producir."],
-              ].map(([t, d]) => (
-                <div key={t} className="rounded-2xl border border-line p-5">
-                  <div className="font-bold">{t}</div>
-                  <p className="mt-1.5 text-sm text-mute">{d}</p>
+            <p className="lx-lead">
+              Tus clientes ya te preguntan por ChatGPT. Llegá a la reunión con datos de su marca y de su competencia, y entregá reportes con tu
+              identidad.
+            </p>
+          </div>
+          <div className="lx-feats">
+            {FEATS.map(([t, d], i) => (
+              <div key={t} className="lx-card lx-card-hover lx-feat" data-spot data-rv style={{ ["--rv-delay" as string]: `${(i % 4) * 0.08}s` }}>
+                <div className="lx-spl" />
+                <div className="lx-feat-n lx-mono">0{i + 1}</div>
+                <h3>{t}</h3>
+                <p>{d}</p>
+              </div>
+            ))}
+          </div>
+          <div className="lx-duo" id="metodologia">
+            <div className="lx-proof" data-rv>
+              <div className="lx-proof-n">
+                47<small>/108</small>
+              </div>
+              <div>
+                <p className="lx-panel-title">Números que podés auditar</p>
+                <p className="lx-panel-text">
+                  Sin “score mágico”: cada métrica muestra cuántas respuestas te nombran sobre cuántas medimos, con el texto original, la fecha, el
+                  motor y el modelo.
+                </p>
+              </div>
+            </div>
+            <div className="lx-panel" data-rv>
+              <p className="lx-panel-title">Hecho para Argentina</p>
+              <p className="lx-panel-text">
+                Preguntas en español rioplatense, por país y ciudad. Pagás en pesos con Mercado Pago. Y el diagnóstico incluye una sesión con alguien
+                que entiende de contenido y SEO, no solo un PDF.
+              </p>
+            </div>
+          </div>
+          <div className="lx-bar" data-rv>
+            <div>
+              <b>¿Tenés una agencia?</b>
+              <span>Probalo con un cliente real y llevá el informe a la próxima reunión.</span>
+            </div>
+            <Link href="/contacto?oferta=agencia">Quiero probarlo con mi agencia →</Link>
+          </div>
+        </section>
+
+        {/* MARCAS */}
+        <section id="marcas" className="lx-section lx-wrap">
+          <div className="lx-head-row" data-rv>
+            <div>
+              <div className="lx-eyebrow lx-mono">Para marcas y empresas</div>
+              <h2 className="lx-h2">Que la IA te nombre cuando preguntan por tu rubro</h2>
+            </div>
+            <p className="lx-lead">Para equipos de marketing que quieren saber qué dicen ChatGPT, Gemini, Perplexity y Claude de su marca, y cambiarlo.</p>
+          </div>
+          <div className="lx-brands">
+            <div className="lx-card" data-spot data-rv>
+              <div className="lx-spl" />
+              <p className="lx-card-title">Para marcas</p>
+              <ul className="lx-checklist">
+                {BRAND_POINTS.map((f) => (
+                  <li key={f}>
+                    <span className="lx-dot" />
+                    {f}
+                  </li>
+                ))}
+              </ul>
+              <div className="lx-actions">
+                <Link href="/contacto?oferta=diagnostico" className="lx-btn lx-btn-primary lx-btn-lg">
+                  Pedir el diagnóstico
+                </Link>
+                <Link href="/demo" className="lx-btn lx-btn-ghost lx-btn-lg">
+                  Ver la demo →
+                </Link>
+              </div>
+            </div>
+            <div className="lx-card lx-checker" data-spot data-rv>
+              <div className="lx-spl" />
+              <div>
+                <h3 className="lx-card-h">Checker de visibilidad IA gratis</h3>
+                <p className="lx-card-text">Ingresá tu dominio y tu rubro, y mirá en menos de un minuto si la IA nombra a tu marca o a otra. Sin registro.</p>
+                <div className="lx-answer">
+                  <div className="lx-answer-q">¿Cuál es el mejor CRM para pymes en Argentina?</div>
+                  <ol>
+                    <li>
+                      <span className="lx-pos">1</span>Andes CRM
+                    </li>
+                    <li>
+                      <span className="lx-pos">2</span>Ceibo Soft
+                    </li>
+                    <li className="is-you">
+                      <span className="lx-pos">3</span>Pampa CRM<span className="lx-answer-badge lx-mono">Tu marca</span>
+                    </li>
+                  </ol>
+                  <p className="lx-answer-cap lx-mono">Ejemplo con marcas ficticias</p>
                 </div>
-              ))}
+              </div>
+              <div className="lx-actions">
+                <Link href="/checker" className="lx-btn lx-btn-ghost lx-btn-lg">
+                  Probar el checker →
+                </Link>
+              </div>
             </div>
           </div>
         </section>
 
         {/* PRECIOS */}
-        <section id="precios" className="mx-auto max-w-6xl px-4 py-20">
-          <div className="mx-auto max-w-2xl text-center">
-            <div className="eyebrow">Precios</div>
-            <h2 className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">Empezá con un diagnóstico. Seguí si te sirve.</h2>
-            <p className="mt-3 text-mute">Pagás en pesos con Mercado Pago o en dólares con tarjeta. Sin permanencia.</p>
+        <section id="precios" className="lx-section lx-wrap">
+          <div className="lx-center" data-rv>
+            <div className="lx-eyebrow lx-mono">Precios</div>
+            <h2 className="lx-h2">Empezá con un diagnóstico. Seguí si te sirve.</h2>
+            <p className="lx-lead">Pagás en pesos con Mercado Pago o en dólares con tarjeta. Sin permanencia.</p>
           </div>
-          <div className="mt-12">
-            <PricingCards />
+          <div className="lx-plans">
+            {PLAN_ORDER.map((pid, i) => {
+              const p = PLANS[pid];
+              const href = payLink(p) ?? `/contacto?oferta=${p.id}`;
+              return (
+                <div key={p.id} className="lx-plan-wrap" data-rv style={{ ["--rv-delay" as string]: `${i * 0.1}s` }}>
+                  {p.highlight ? (
+                    <div className="lx-plan-ring" aria-hidden>
+                      <div />
+                    </div>
+                  ) : null}
+                  <div className={`lx-plan${p.highlight ? " is-hot" : ""}`}>
+                    {p.highlight ? <span className="lx-plan-badge lx-mono">Empezá por acá</span> : null}
+                    <h3>{p.name}</h3>
+                    <p className="lx-plan-desc">{p.tagline}</p>
+                    <div className="lx-plan-price">
+                      <span>US${p.priceUsd}</span>
+                      <span className="lx-plan-per lx-mono">{p.period === "mes" ? "USD / mes" : "pago único"}</span>
+                    </div>
+                    <TrackLink
+                      name="pricing_click"
+                      props={{ plan: p.id }}
+                      href={href}
+                      className={`lx-btn lx-plan-cta ${p.highlight ? "lx-btn-primary" : "lx-btn-ghost"}`}
+                    >
+                      {PLAN_CTA[p.id]}
+                    </TrackLink>
+                    <ul className="lx-plan-feats">
+                      {p.features.map((f) => (
+                        <li key={f}>
+                          <span className="lx-dot" />
+                          {f}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <div className="lx-bar">
+            <div>
+              <b>Probalo sin pagar</b>
+              <span>
+                {trial.features.join(" · ")}. Creás la cuenta y medís tu marca.
+              </span>
+            </div>
+            <Link href="/registro">Crear cuenta gratis →</Link>
+          </div>
+          <div className="lx-bar">
+            <div>
+              <b>¿Necesitás algo diferente?</b>
+              <span>Armamos un plan a medida según la cantidad de marcas, motores y frecuencia.</span>
+            </div>
+            <Link href="/contacto">Consultar plan a medida →</Link>
+          </div>
+          <div className="lx-footnotes lx-mono">
+            <span>El diagnóstico es un pago único. El monitoreo se cancela cuando quieras.</span>
+            <Link href="/precios">Ver la comparación completa →</Link>
           </div>
         </section>
 
         {/* FAQ */}
-        <section id="faq" className="border-t border-line bg-white">
-          <div className="mx-auto max-w-3xl px-4 py-20">
-            <h2 className="text-3xl font-bold tracking-tight">Preguntas frecuentes</h2>
-            <div className="mt-8 divide-y divide-line">
-              {FAQ.map((f) => (
-                <details key={f.q} className="group py-4">
-                  <summary className="flex cursor-pointer list-none items-center justify-between gap-4 font-semibold">
-                    {f.q}
-                    <span className="text-mute transition group-open:rotate-45">+</span>
-                  </summary>
-                  <p className="mt-3 text-sm leading-relaxed text-mute">{f.a}</p>
-                </details>
-              ))}
-            </div>
+        <section id="faq" className="lx-section lx-wrap">
+          <div className="lx-center" data-rv>
+            <div className="lx-eyebrow lx-mono">Preguntas frecuentes</div>
+            <h2 className="lx-h2">Todo lo que necesitás saber</h2>
+          </div>
+          <div className="lx-faq">
+            {FAQ.map((f, i) => (
+              <details key={f.q} open={i === 0}>
+                <summary>
+                  <h3>{f.q}</h3>
+                </summary>
+                <p>{f.a}</p>
+              </details>
+            ))}
           </div>
         </section>
 
         {/* CTA FINAL */}
-        <section className="mx-auto max-w-6xl px-4 py-20">
-          <div className="relative overflow-hidden rounded-3xl bg-ink px-8 py-14 text-white sm:px-14">
-            <div className="pointer-events-none absolute -right-20 -top-20 h-72 w-72 rounded-full bg-celeste/30 blur-3xl" />
-            <h2 className="relative max-w-2xl text-3xl font-bold tracking-tight sm:text-4xl">La IA ya está hablando de tu rubro. Fijate si habla de vos.</h2>
-            <div className="relative mt-8 flex flex-wrap gap-3">
-              <Link href="/checker" className="btn bg-white text-ink hover:bg-paper">
+        <section className="lx-section lx-wrap">
+          <div className="lx-cta" data-spot data-rv>
+            <div className="lx-cta-glow" />
+            <div className="lx-spl" />
+            <h2>La IA ya está hablando de tu rubro. Fijate si habla de vos.</h2>
+            <p className="lx-cta-sub">Ingresá tu dominio y en menos de un minuto ves qué responde la IA cuando un cliente pregunta por tu mercado.</p>
+            <div className="lx-cta-btns">
+              <Link href="/checker" className="lx-btn lx-btn-primary lx-btn-lg">
                 Medir mi marca gratis
               </Link>
-              <Link href="/contacto?oferta=diagnostico" className="btn border border-white/30 text-white hover:bg-white/10">
+              <Link href="/contacto?oferta=diagnostico" className="lx-btn lx-btn-ghost lx-btn-lg">
                 Pedir el diagnóstico de 48 h
               </Link>
             </div>
+            <div className="lx-micro lx-mono">Sin registro · Sin tarjeta · Respuestas completas, no solo un puntaje</div>
           </div>
         </section>
       </main>
-      <SiteFooter />
-    </>
+
+      <LandingFooter />
+    </div>
   );
 }
