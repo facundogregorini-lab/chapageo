@@ -39,7 +39,7 @@ export default async function Clientes() {
       <div className="card p-4 text-sm">
         <div className="flex flex-wrap items-center gap-2">
           <span className="font-semibold">Recolección:</span>
-          {online.length ? <Badge tone="ok">worker activo · señal {fmtDate(online[0].heartbeat_at, true)}</Badge> : <Badge tone="sol">worker sin señal: los análisis quedan en cola</Badge>}
+          {isDemo && !online.length ? <Badge tone="ok">demo: las respuestas simuladas se generan desde la web</Badge> : online.length ? <Badge tone="ok">worker activo · señal {fmtDate(online[0].heartbeat_at, true)}</Badge> : <Badge tone="sol">worker sin señal: los análisis quedan en cola</Badge>}
           {avail.map((a) => (
             <Badge key={a.id} tone={AVAIL_TONE[a.status]} title={a.reason ?? undefined}>
               {a.label}: {AVAIL_TEXT[a.status]}

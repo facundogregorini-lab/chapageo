@@ -281,7 +281,7 @@ export async function recoverStaleJobs(staleMs = LIMITS.staleJobMs): Promise<str
 export type ClaimedJob = ResponseRow & { lease_id: string };
 
 /** Reclama atómicamente la próxima ejecución pendiente de alguno de los conectores dados. */
-export async function claimJob(workerId: string, collectors: string[]): Promise<ClaimedJob | null> {
+export async function claimJob(workerId: string, collectors: string[], opts: { runId?: string } = {}): Promise<ClaimedJob | null> {
   if (!collectors.length) return null;
   const lease = randomBytes(12).toString("base64url");
   const ts = now();
@@ -290,11 +290,11 @@ export async function claimJob(workerId: string, collectors: string[]): Promise<
     sql: `UPDATE responses SET status = 'running', lease_id = ?, worker_id = ?, heartbeat_at = ?, claimed_at = ?, started_at = ?, attempts = attempts + 1
           WHERE id = (
             SELECT id FROM responses
-            WHERE status = 'pending' AND (next_attempt_at IS NULL OR next_attempt_at <= ?) AND collector IN (${marks})
+            WHERE status = 'pending' AND (next_attempt_at IS NULL OR next_attempt_at <= ?) AND collector IN (${marks})${opts.runId ? " AND run_id = ?" : ""}
             ORDER BY created_at, run_id, repetition, id LIMIT 1
           ) AND status = 'pending'
           RETURNING *`,
-    args: [lease, workerId, ts, ts, ts, ts, ...collectors],
+    args: [lease, workerId, ts, ts, ts, ts, ...collectors, ...(opts.runId ? [opts.runId] : [])],
   });
   const row = r.rows[0] as unknown as Record<string, unknown> | undefined;
   if (!row) return null;
