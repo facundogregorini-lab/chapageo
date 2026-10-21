@@ -102,6 +102,17 @@
 .lx-checkform input { flex: 1; min-width: 0; background: transparent; border: 0; outline: none; color: var(--lx-fg); font: inherit; font-size: 15px; padding: 12px 18px; }
 .lx-checkform input::placeholder { color: #8d8f97b0; }
 .lx-checkform input + input { border-left: 1px solid var(--lx-line); }
+/* Autocompletado de Chrome/Safari: sin el fondo celeste, mantiene el tema oscuro. */
+.lx input:-webkit-autofill,
+.lx input:-webkit-autofill:hover,
+.lx input:-webkit-autofill:focus,
+.lx input:-webkit-autofill:active {
+  -webkit-text-fill-color: var(--lx-fg);
+  caret-color: var(--lx-fg);
+  -webkit-box-shadow: 0 0 0 1000px var(--lx-surface) inset;
+  box-shadow: 0 0 0 1000px var(--lx-surface) inset;
+  transition: background-color 9999s ease-out 0s;
+}
 .lx-checkform .lx-btn { padding: 13px 24px; font-size: 15px; }
 @media (max-width: 640px) {
   .lx-checkform { flex-direction: column; border-radius: 22px; }
