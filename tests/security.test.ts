@@ -45,3 +45,15 @@ test("las preguntas que nombran a la marca nunca quedan como descubrimiento", ()
   for (const p of t) assert.equal(classifyPrompt(p.text, b, p.category), p.category, p.text);
   assert.ok(t.filter((p) => p.category === "descubrimiento").length >= 5);
 });
+
+test("admin: solo los emails de ADMIN_EMAILS; sin la variable, nadie en producción; la demo nunca", async () => {
+  const { isAdminEmail } = await import("../lib/auth");
+  const prod = { NODE_ENV: "production" } as NodeJS.ProcessEnv;
+  assert.equal(isAdminEmail("cualquiera@x.com", false, prod), false);
+  assert.equal(isAdminEmail("cualquiera@x.com", false, { NODE_ENV: "development" } as NodeJS.ProcessEnv), true);
+  const withList = { NODE_ENV: "production", ADMIN_EMAILS: "Facu@ChapaGEO.com, otro@x.com" } as NodeJS.ProcessEnv;
+  assert.equal(isAdminEmail("facu@chapageo.com", false, withList), true);
+  assert.equal(isAdminEmail("intruso@x.com", false, withList), false);
+  assert.equal(isAdminEmail("facu@chapageo.com", true, withList), false);
+  assert.equal(isAdminEmail("demo@chapageo.local", true, { NODE_ENV: "development" } as NodeJS.ProcessEnv), false);
+});

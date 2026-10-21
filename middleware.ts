@@ -4,9 +4,9 @@ import { SESSION_COOKIE, verifySession } from "./lib/session";
 export async function middleware(req: NextRequest) {
   const userId = await verifySession(req.cookies.get(SESSION_COOKIE)?.value);
   if (!userId) {
-    const url = req.nextUrl.clone();
-    url.pathname = "/ingresar";
-    url.searchParams.set("next", req.nextUrl.pathname);
+    // next conserva la query (ej. /app/plan?plan=agencia) para volver exactamente adonde iba.
+    const url = new URL("/ingresar", req.url);
+    url.searchParams.set("next", req.nextUrl.pathname + req.nextUrl.search);
     return NextResponse.redirect(url);
   }
   return NextResponse.next();

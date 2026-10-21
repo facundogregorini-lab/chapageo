@@ -17,6 +17,16 @@ export function Logo({ className = "" }: { className?: string }) {
   );
 }
 
+/** Aviso en las pantallas de edición del espacio demo (compartido, de solo lectura). */
+export function DemoReadOnly({ what = "editar" }: { what?: string }) {
+  return (
+    <p className="rounded-xl border border-sol/40 bg-sol-50 px-4 py-3 text-sm text-[#6b4700]">
+      La demo es compartida por todos los visitantes, así que acá no se puede {what}.{" "}
+      <a href="/registro" className="font-semibold underline">Creá tu cuenta gratis</a> para hacerlo con tus clientes.
+    </p>
+  );
+}
+
 export function Badge({ children, tone = "neutral", title }: { children: ReactNode; tone?: "neutral" | "ok" | "bad" | "sol" | "celeste"; title?: string }) {
   const tones = {
     neutral: "bg-paper text-mute border-line",

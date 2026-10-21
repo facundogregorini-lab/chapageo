@@ -101,7 +101,7 @@ export default function Home() {
               <input name="c" required placeholder="Rubro (ej: estudio contable)" aria-label="Rubro" />
               <button className="lx-btn lx-btn-primary">Medir gratis</button>
             </form>
-            <div className="lx-micro lx-mono">Sin registro · Resultado en menos de un minuto · 5 preguntas reales de tu rubro</div>
+            <div className="lx-micro lx-mono">Sin registro · Respuestas en uno o dos minutos · 5 preguntas reales de tu rubro</div>
             <div className="lx-hero-links">
               <a href="/demo" className="lx-brand-link">
                 Ver el panel con datos de ejemplo <span aria-hidden>→</span>
@@ -345,7 +345,7 @@ export default function Home() {
               <div className="lx-spl" />
               <div>
                 <h3 className="lx-card-h">Checker de visibilidad IA gratis</h3>
-                <p className="lx-card-text">Ingresá tu dominio y tu rubro, y mirá en menos de un minuto si la IA nombra a tu marca o a otra. Sin registro.</p>
+                <p className="lx-card-text">Ingresá tu dominio y tu rubro, y mirá en un par de minutos si la IA nombra a tu marca o a otra. Sin registro.</p>
                 <div className="lx-answer">
                   <div className="lx-answer-q">¿Cuál es el mejor CRM para pymes en Argentina?</div>
                   <ol>
@@ -465,7 +465,7 @@ export default function Home() {
             <div className="lx-cta-glow" />
             <div className="lx-spl" />
             <h2>La IA ya está hablando de tu rubro. Fijate si habla de vos.</h2>
-            <p className="lx-cta-sub">Ingresá tu dominio y en menos de un minuto ves qué responde la IA cuando un cliente pregunta por tu mercado.</p>
+            <p className="lx-cta-sub">Ingresá tu dominio y en un par de minutos ves qué responde la IA cuando un cliente pregunta por tu mercado.</p>
             <div className="lx-cta-btns">
               <Link href="/checker" className="lx-btn lx-btn-primary lx-btn-lg">
                 Medir mi marca gratis

@@ -171,3 +171,15 @@ test("firma del webhook", async () => {
   assert.ok(!verifyWebhookSignature({ secret, signature: null, requestId: "req-1", dataId: "abc123" }));
   assert.ok(!verifyWebhookSignature({ secret, signature: "ts=1,v1=zz", requestId: "req-1", dataId: "abc123" }));
 });
+
+test("volver a tocar «Suscribirme» retoma el checkout pendiente en vez de crear otro", async () => {
+  const { ws } = await setupAgency("Indecisa");
+  const first = await b.startCheckout(await ctxFor(ws), "agencia");
+  const again = await b.startCheckout(await ctxFor(ws), "agencia");
+  assert.equal(again, first);
+  assert.equal(calls.filter((c) => c.method === "POST").length, 1);
+  const pend = await dbm.all("SELECT id FROM subscriptions WHERE workspace_id = ? AND status = 'pending'", [ws]);
+  assert.equal(pend.length, 1);
+  // Otro plan sí abre su propio checkout.
+  assert.notEqual(await b.startCheckout(await ctxFor(ws), "marca"), first);
+});

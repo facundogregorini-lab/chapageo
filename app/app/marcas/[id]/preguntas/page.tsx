@@ -1,6 +1,8 @@
 import { addPromptAction, deletePromptAction, setApprovalAction, suggestMorePromptsAction, updatePromptAction } from "@/app/app/marcas/actions";
 import { Badge } from "@/components/ui";
+import { DemoReadOnly } from "@/components/ui";
 import { brandForCtx } from "@/lib/access";
+import { isDemoCtx } from "@/lib/auth";
 import { all } from "@/lib/db";
 import { LIMITS } from "@/lib/limits";
 import { helperAvailable } from "@/lib/llm";
@@ -16,12 +18,14 @@ const HINT: Record<string, string> = {
 
 export default async function Page({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  await brandForCtx(id);
+  const { ctx } = await brandForCtx(id);
+  const demo = isDemoCtx(ctx);
   const prompts = (await all("SELECT * FROM prompts WHERE brand_id = ? AND active = 1 ORDER BY created_at", [id])).map((r) => toPrompt(r as Record<string, unknown>));
   const approved = prompts.filter((p) => p.approved).length;
   const ok = approved >= LIMITS.minPrompts && approved <= LIMITS.maxPrompts;
   return (
-    <div className="space-y-5">
+    <fieldset disabled={demo} className="space-y-5">
+      {demo ? <DemoReadOnly what="editar preguntas" /> : null}
       <div className="card p-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
@@ -83,6 +87,6 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
           </div>
         );
       })}
-    </div>
+    </fieldset>
   );
 }

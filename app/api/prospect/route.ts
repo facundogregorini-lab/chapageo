@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prospectsThisMonth } from "@/lib/access";
-import { getCtx } from "@/lib/auth";
+import { DEMO_READONLY, getCtx, isDemoCtx } from "@/lib/auth";
 import { CHECKER_ENGINES, runChecker, saveAudit, type CheckerEngine } from "@/lib/checker";
 
 export const maxDuration = 60;
@@ -8,6 +8,8 @@ export const maxDuration = 60;
 export async function POST(req: Request) {
   const ctx = await getCtx();
   if (!ctx) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  // La demo la comparten todos los visitantes: una auditoría real consume consultas pagas.
+  if (isDemoCtx(ctx)) return NextResponse.json({ error: DEMO_READONLY }, { status: 403 });
   const used = await prospectsThisMonth(ctx.workspace.id);
   if (used >= ctx.plan.prospectsPerMonth) {
     return NextResponse.json({ error: `Tu plan incluye ${ctx.plan.prospectsPerMonth} auditorías de prospección por mes y ya usaste ${used}.` }, { status: 402 });

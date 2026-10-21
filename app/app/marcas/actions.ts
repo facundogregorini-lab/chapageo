@@ -7,7 +7,7 @@ import { z } from "zod";
 import { brandForCtx, deleteBrandCascade, workspaceBrands } from "@/lib/access";
 import { cleanDomain } from "@/lib/analyze";
 import { auditSite } from "@/lib/audit";
-import { requireCtx } from "@/lib/auth";
+import { DEMO_READONLY, isDemoCtx, requireCtx } from "@/lib/auth";
 import { canCreateBrand, canStartAnalysis } from "@/lib/billing";
 import { dispatchRun } from "@/lib/brightdata-batch";
 import { saveAudit } from "@/lib/checker";
@@ -51,8 +51,15 @@ function parseCompetitors(raw: { name: string; domain?: string }[]) {
     .map((c) => ({ name: c.name.trim(), domain: c.domain ? cleanDomain(c.domain) || undefined : undefined }));
 }
 
+/** Cliente editable: en la demo (compartida) las ediciones no se aplican. */
+async function editableBrand(brandId: string) {
+  const r = await brandForCtx(brandId);
+  return isDemoCtx(r.ctx) ? null : r;
+}
+
 export async function createBrandAction(payload: unknown): Promise<{ error?: string }> {
   const ctx = await requireCtx();
+  if (isDemoCtx(ctx)) return { error: DEMO_READONLY };
   const parsed = NewBrandZ.safeParse(payload);
   if (!parsed.success) return { error: "Revisá los datos: " + parsed.error.issues.map((i) => i.path.join(".") || i.message).join(", ") };
   const p = parsed.data;
@@ -99,7 +106,9 @@ export async function createBrandAction(payload: unknown): Promise<{ error?: str
 }
 
 export async function updateBrandAction(brandId: string, form: FormData) {
-  const { ctx, brand } = await brandForCtx(brandId);
+  const r = await editableBrand(brandId);
+  if (!r) return;
+  const { ctx, brand } = r;
   const competitors = parseCompetitors(
     [0, 1, 2].map((i) => ({ name: String(form.get(`comp_name_${i}`) ?? ""), domain: String(form.get(`comp_domain_${i}`) ?? "") })),
   );
@@ -120,8 +129,11 @@ export async function updateBrandAction(brandId: string, form: FormData) {
   revalidatePath(`/app/marcas/${brandId}`, "layout");
 }
 
-export async function deleteBrandAction(brandId: string) {
-  const { ctx } = await brandForCtx(brandId);
+export async function deleteBrandAction(brandId: string, form?: FormData) {
+  if (form && !form.get("confirm")) return;
+  const r = await editableBrand(brandId);
+  if (!r) return;
+  const { ctx } = r;
   await deleteBrandCascade(ctx.workspace.id, brandId);
   redirect("/app");
 }
@@ -139,7 +151,9 @@ async function approvedCount(brandId: string) {
 }
 
 export async function addPromptAction(brandId: string, form: FormData) {
-  const { brand } = await brandForCtx(brandId);
+  const r = await editableBrand(brandId);
+  if (!r) return;
+  const { brand } = r;
   const text = String(form.get("text") ?? "").trim().slice(0, 300);
   if (text.length < 8) return;
   const category = classifyPrompt(text, brand, categoryFrom(form.get("category")));
@@ -152,7 +166,9 @@ export async function addPromptAction(brandId: string, form: FormData) {
 }
 
 export async function updatePromptAction(brandId: string, promptId: string, form: FormData) {
-  const { brand } = await brandForCtx(brandId);
+  const r = await editableBrand(brandId);
+  if (!r) return;
+  const { brand } = r;
   const text = String(form.get("text") ?? "").trim().slice(0, 300);
   if (text.length < 8) return;
   const category = classifyPrompt(text, brand, categoryFrom(form.get("category")));
@@ -169,20 +185,22 @@ export async function updatePromptAction(brandId: string, promptId: string, form
 }
 
 export async function setApprovalAction(brandId: string, promptId: string, approve: boolean) {
-  await brandForCtx(brandId);
+  if (!(await editableBrand(brandId))) return;
   if (approve && (await approvedCount(brandId)) >= LIMITS.maxPrompts) return;
   await run("UPDATE prompts SET approved = ?, updated_at = ? WHERE id = ? AND brand_id = ?", [approve ? 1 : 0, now(), promptId, brandId]);
   revalidatePath(`/app/marcas/${brandId}/preguntas`);
 }
 
 export async function deletePromptAction(brandId: string, promptId: string) {
-  await brandForCtx(brandId);
+  if (!(await editableBrand(brandId))) return;
   await run("DELETE FROM prompts WHERE id = ? AND brand_id = ?", [promptId, brandId]);
   revalidatePath(`/app/marcas/${brandId}/preguntas`);
 }
 
 export async function suggestMorePromptsAction(brandId: string) {
-  const { brand } = await brandForCtx(brandId);
+  const r = await editableBrand(brandId);
+  if (!r) return;
+  const { brand } = r;
   const existing = await one<{ n: number }>("SELECT COUNT(*) AS n FROM prompts WHERE brand_id = ?", [brandId]);
   if (Number(existing?.n ?? 0) >= 40) return;
   const site = await readSite(brand.domain).catch(() => null);
@@ -247,7 +265,9 @@ export async function closeAnalysisAction(brandId: string, runId: string) {
 }
 
 export async function rotateShareToken(brandId: string) {
-  const { ctx } = await brandForCtx(brandId);
+  const r = await editableBrand(brandId);
+  if (!r) return;
+  const { ctx } = r;
   await run("UPDATE brands SET share_token = ? WHERE id = ? AND workspace_id = ?", [token(), brandId, ctx.workspace.id]);
   revalidatePath(`/app/marcas/${brandId}/informe`);
 }

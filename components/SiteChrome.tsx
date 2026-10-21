@@ -13,7 +13,7 @@ export function SiteHeader() {
           <Link href="/checker" className="hover:text-ink">Checker gratis</Link>
         </nav>
         <div className="flex items-center gap-2">
-          <Link href="/ingresar" className="hidden text-sm font-semibold text-mute hover:text-ink sm:block">
+          <Link href="/ingresar" className="text-sm font-semibold text-mute hover:text-ink">
             Ingresar
           </Link>
           <a href="/demo" className="btn-primary btn-sm">

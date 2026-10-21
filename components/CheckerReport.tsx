@@ -9,8 +9,11 @@ export function CheckerReport({ r }: { r: CheckerResult }) {
   // Motores que todavía no respondieron (los chequeos viejos guardaban un solo snapshotId).
   const waiting = new Set(r.pending ? (r.pending.snapshots?.map((s) => s.engine) ?? [r.engine ?? "chatgpt"]) : []);
   const waitingLabel = [...waiting].map((e) => ENGINES[e as keyof typeof ENGINES]?.label ?? e).join(", ");
-  const verdict =
-    r.total === 0
+  // Todavía no llegó ninguna respuesta: no mostramos ceros que parecen un resultado.
+  const waitingAll = Boolean(r.pending) && r.total === 0;
+  const verdict = waitingAll
+    ? { tone: "neutral" as const, text: "Esperando las respuestas" }
+    : r.total === 0
       ? { tone: "bad" as const, text: "No pudimos obtener respuestas" }
       : r.mentioned === 0
         ? { tone: "bad" as const, text: "La IA no te recomendó en ninguna pregunta" }
@@ -50,7 +53,7 @@ export function CheckerReport({ r }: { r: CheckerResult }) {
         <div className="card p-6">
           <div className="text-xs font-semibold text-mute">Puntaje de visibilidad</div>
           <div className="mt-1 flex items-baseline gap-2">
-            <span className="text-5xl font-bold tracking-tight">{r.score}</span>
+            <span className="text-5xl font-bold tracking-tight">{waitingAll ? "—" : r.score}</span>
             <span className="text-mute">/100</span>
           </div>
           <div className="mt-2">
@@ -61,8 +64,12 @@ export function CheckerReport({ r }: { r: CheckerResult }) {
         <div className="card p-6">
           <div className="text-xs font-semibold text-mute">Te mencionó</div>
           <div className="mt-1 text-4xl font-bold">
-            {r.mentioned}
-            <span className="text-xl text-mute"> de {r.total}</span>
+            {waitingAll ? "—" : (
+              <>
+                {r.mentioned}
+                <span className="text-xl text-mute"> de {r.total}</span>
+              </>
+            )}
           </div>
           <p className="mt-2 text-xs text-mute">{multi ? "respuestas" : "preguntas"} en {r.engineLabel}{r.city ? `, ${r.city}` : ""}, {countryName(r.country)}</p>
           {r.byEngine ? (
@@ -79,8 +86,12 @@ export function CheckerReport({ r }: { r: CheckerResult }) {
         <div className="card p-6">
           <div className="text-xs font-semibold text-mute">Citó tu sitio</div>
           <div className="mt-1 text-4xl font-bold">
-            {r.cited}
-            <span className="text-xl text-mute"> de {r.total}</span>
+            {waitingAll ? "—" : (
+              <>
+                {r.cited}
+                <span className="text-xl text-mute"> de {r.total}</span>
+              </>
+            )}
           </div>
           <p className="mt-2 text-xs text-mute">veces usó {r.domain} como fuente</p>
         </div>
@@ -99,7 +110,7 @@ export function CheckerReport({ r }: { r: CheckerResult }) {
               ))}
             </ul>
           ) : (
-            <p className="mt-2 text-sm text-mute">No detectamos otras marcas listadas.</p>
+            <p className="mt-2 text-sm text-mute">{waitingAll ? "Aparece cuando respondan los motores." : "No detectamos otras marcas listadas."}</p>
           )}
         </div>
         <div className="card p-5">
@@ -114,7 +125,7 @@ export function CheckerReport({ r }: { r: CheckerResult }) {
               ))}
             </ul>
           ) : (
-            <p className="mt-2 text-sm text-mute">El motor no devolvió fuentes.</p>
+            <p className="mt-2 text-sm text-mute">{waitingAll ? "Aparece cuando respondan los motores." : "El motor no devolvió fuentes."}</p>
           )}
         </div>
       </div>

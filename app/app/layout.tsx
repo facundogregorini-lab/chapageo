@@ -49,13 +49,21 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         </div>
       </aside>
       <div className="min-w-0 flex-1">
-        <div className="no-print flex items-center justify-between border-b border-line bg-white px-4 py-3 lg:hidden">
-          <Logo />
-          <div className="flex gap-3 text-sm font-semibold">
-            <Link href="/app">Clientes</Link>
-            <Link href="/app/plan">Plan</Link>
-            <Link href="/app/ajustes">Ajustes</Link>
+        <div className="no-print border-b border-line bg-white lg:hidden">
+          <div className="flex items-center justify-between px-4 py-3">
+            <Logo />
+            <form action={logoutAction}>
+              <button className="text-sm font-semibold text-mute">Salir</button>
+            </form>
           </div>
+          <nav className="flex gap-4 overflow-x-auto whitespace-nowrap px-4 pb-3 text-sm font-semibold" aria-label="Secciones">
+            <Link href="/app">Clientes</Link>
+            <Link href="/app/marcas/nueva">+ Nuevo cliente</Link>
+            <Link href="/app/prospeccion">Prospección</Link>
+            {ctx.isAdmin ? <Link href="/app/validacion">Validación</Link> : null}
+            <Link href="/app/plan">Plan y pago</Link>
+            <Link href="/app/ajustes">Ajustes</Link>
+          </nav>
         </div>
         {isEphemeralDb() ? (
           <div className="no-print border-b border-sol/40 bg-sol-50 px-4 py-2 text-center text-xs text-[#6b4700]">

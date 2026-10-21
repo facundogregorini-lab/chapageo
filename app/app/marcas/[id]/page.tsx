@@ -7,6 +7,8 @@ import { loadReport } from "@/lib/report";
 import { STATUS_LABEL } from "@/lib/types";
 import { fmtDate } from "@/components/ui";
 
+export const metadata = { title: "Resumen" };
+
 export default async function Page({
   params,
   searchParams,

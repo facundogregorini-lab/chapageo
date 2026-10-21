@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { cleanDomain } from "@/lib/analyze";
-import { getCtx } from "@/lib/auth";
+import { DEMO_READONLY, getCtx, isDemoCtx } from "@/lib/auth";
 import { LIMITS } from "@/lib/limits";
 import { readSite } from "@/lib/site-reader";
 import { suggestCompetitors, suggestPrompts } from "@/lib/suggest";
@@ -10,6 +10,7 @@ export const maxDuration = 60;
 export async function POST(req: Request) {
   const ctx = await getCtx();
   if (!ctx) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  if (isDemoCtx(ctx)) return NextResponse.json({ error: DEMO_READONLY }, { status: 403 });
   const body = await req.json().catch(() => ({}));
   const domain = cleanDomain(String(body.domain ?? ""));
   const input = {

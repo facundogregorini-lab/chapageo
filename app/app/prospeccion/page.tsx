@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { CheckerForm } from "@/components/CheckerForm";
-import { Badge, fmtDate } from "@/components/ui";
+import { Badge, DemoReadOnly, fmtDate } from "@/components/ui";
 import { prospectsThisMonth } from "@/lib/access";
-import { requireCtx } from "@/lib/auth";
+import { isDemoCtx, requireCtx } from "@/lib/auth";
 import { checkerEngineOptions, type CheckerResult } from "@/lib/checker";
 import { all, parseJson } from "@/lib/db";
 
@@ -24,7 +24,11 @@ export default async function Page() {
         {ctx.plan.prospectsPerMonth} este mes.
       </p>
       <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_1.1fr]">
-        {left > 0 ? (
+        {isDemoCtx(ctx) ? (
+          <div>
+            <DemoReadOnly what="auditar prospectos (cada auditoría consulta los motores de verdad)" />
+          </div>
+        ) : left > 0 ? (
           <CheckerForm endpoint="/api/prospect" resultBase="/auditoria" extra={{ mode: "prospect" }} engineOptions={checkerEngineOptions()} />
         ) : (
           <div className="card p-6 text-sm">

@@ -1,7 +1,7 @@
 import { BrightDataProbe } from "@/components/BrightDataProbe";
-import { Badge } from "@/components/ui";
+import { Badge, DemoReadOnly } from "@/components/ui";
 import { prospectsThisMonth, workspaceBrands } from "@/lib/access";
-import { requireCtx } from "@/lib/auth";
+import { isDemoCtx, requireCtx } from "@/lib/auth";
 import { isBrightDataId } from "@/lib/collectors/brightdata";
 import { isEphemeralDb } from "@/lib/db";
 import { LIMITS } from "@/lib/limits";
@@ -19,8 +19,10 @@ const COLLECTOR_STATUS: Record<string, string> = {
   not_configured: "no configurado",
 };
 
-export default async function Page() {
+export default async function Page({ searchParams }: { searchParams: Promise<{ guardado?: string }> }) {
   const ctx = await requireCtx();
+  const { guardado } = await searchParams;
+  const demo = isDemoCtx(ctx);
   const [brands, prospects, avail] = await Promise.all([
     workspaceBrands(ctx.workspace.id),
     prospectsThisMonth(ctx.workspace.id),
@@ -29,29 +31,33 @@ export default async function Page() {
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold tracking-tight">Ajustes</h1>
+      {demo ? <DemoReadOnly what="cambiar los datos de la agencia" /> : null}
+      {guardado && !demo ? <p className="rounded-xl bg-ok-50 px-4 py-3 text-sm text-ok">Guardamos los cambios.</p> : null}
       <div className="grid gap-5 lg:grid-cols-[1.3fr_1fr]">
-        <form action={updateWorkspaceAction} className="card space-y-4 p-6">
+        <form action={updateWorkspaceAction} className="card p-6">
+          <fieldset disabled={demo} className="space-y-4">
           <h2 className="font-bold">Tu agencia / empresa</h2>
           <div>
-            <label className="label">Nombre</label>
-            <input name="name" defaultValue={ctx.workspace.name} className="input" />
+            <label className="label" htmlFor="ws-name">Nombre</label>
+            <input id="ws-name" name="name" defaultValue={ctx.workspace.name} className="input" />
           </div>
           <div className="grid gap-4 sm:grid-cols-[120px_1fr]">
             <div>
-              <label className="label">Color</label>
-              <input type="color" name="brand_color" defaultValue={ctx.workspace.brand_color} className="h-10 w-full cursor-pointer rounded-xl border border-line" />
+              <label className="label" htmlFor="ws-color">Color</label>
+              <input id="ws-color" type="color" name="brand_color" defaultValue={ctx.workspace.brand_color} className="h-10 w-full cursor-pointer rounded-xl border border-line" />
             </div>
             <div>
-              <label className="label">URL del logo (https)</label>
-              <input name="logo_url" defaultValue={ctx.workspace.logo_url ?? ""} placeholder="https://…/logo.png" className="input" />
+              <label className="label" htmlFor="ws-logo">URL del logo (https)</label>
+              <input id="ws-logo" name="logo_url" defaultValue={ctx.workspace.logo_url ?? ""} placeholder="https://…/logo.png" className="input" />
             </div>
           </div>
           <div>
-            <label className="label">Pie de los reportes</label>
-            <input name="report_footer" defaultValue={ctx.workspace.report_footer ?? ""} placeholder="Ej: Preparado por Agencia X · hola@agenciax.com" className="input" />
+            <label className="label" htmlFor="ws-footer">Pie de los reportes</label>
+            <input id="ws-footer" name="report_footer" defaultValue={ctx.workspace.report_footer ?? ""} placeholder="Ej: Preparado por Agencia X · hola@agenciax.com" className="input" />
           </div>
           {!ctx.plan.whiteLabel ? <p className="text-xs text-mute">El white-label (logo, color y pie en reportes) se activa con el plan Agencia. <a href="/app/plan?plan=agencia" className="underline">Ver planes</a></p> : null}
-          <button className="btn-primary">Guardar</button>
+          <button className="btn-primary disabled:opacity-50">Guardar</button>
+          </fieldset>
         </form>
         <div className="space-y-5">
           <div className="card p-6">
