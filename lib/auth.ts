@@ -7,15 +7,17 @@ import type { User, Workspace } from "./types";
 
 export { checkPassword, hashPassword } from "./auth-hash";
 
+export const sessionCookieOptions = {
+  httpOnly: true,
+  sameSite: "lax",
+  secure: process.env.NODE_ENV === "production",
+  path: "/",
+  maxAge: 60 * 60 * 24 * 30,
+} as const;
+
 export async function startSession(userId: string) {
   const jar = await cookies();
-  jar.set(SESSION_COOKIE, await signSession(userId), {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
-    path: "/",
-    maxAge: 60 * 60 * 24 * 30,
-  });
+  jar.set(SESSION_COOKIE, await signSession(userId), sessionCookieOptions);
 }
 
 export async function endSession() {

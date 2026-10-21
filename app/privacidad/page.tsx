@@ -18,6 +18,10 @@ export default function Page() {
           leerla.
         </li>
         <li>
+          <strong>Ingreso con Google:</strong> si elegís «Continuar con Google», Google nos envía tu email, tu nombre y un identificador de tu cuenta de
+          Google. No recibimos tu contraseña de Google ni accedemos a tu Gmail, Drive, contactos ni a otros servicios de Google.
+        </li>
+        <li>
           <strong>Contenido que cargás:</strong> datos de tus clientes y marcas (nombre, dominio, descripción, rubro, competidores), las preguntas que
           aprobás y la configuración de cada análisis.
         </li>
@@ -46,7 +50,8 @@ export default function Page() {
 
       <h2>3. Cookies y almacenamiento local</h2>
       <p>
-        Usamos una cookie de sesión necesaria para mantenerte conectado (<code>cg_session</code>) y un identificador aleatorio en el almacenamiento local
+        Usamos una cookie de sesión necesaria para mantenerte conectado (<code>cg_session</code>), una cookie temporal que protege el ingreso con Google
+        y se borra al terminarlo (<code>cg_google</code>, dura como máximo 10 minutos) y un identificador aleatorio en el almacenamiento local
         del navegador para las estadísticas de uso propias. No usamos cookies de terceros con fines publicitarios.
       </p>
 
@@ -63,6 +68,9 @@ export default function Page() {
           competidores. Para sugerir preguntas, también podemos enviar texto público del sitio de tu cliente. No enviamos tus datos de cuenta.
         </li>
         <li>
+          <strong>Google:</strong> si usás el ingreso con Google, Google procesa ese inicio de sesión según su propia política de privacidad.
+        </li>
+        <li>
           <strong>Pagos:</strong> si contratás un plan, el pago se procesa en la plataforma de pago correspondiente (por ejemplo, Mercado Pago), con su
           propia política de privacidad. ChapaGEO no guarda datos de tarjetas.
         </li>
@@ -73,27 +81,42 @@ export default function Page() {
       </p>
       <p>Fuera de estos casos, solo compartimos datos si una autoridad competente lo exige por ley.</p>
 
-      <h2>5. Transferencia internacional</h2>
+      <h2>5. Datos que recibimos de Google</h2>
+      <p>
+        Usamos los datos que nos da Google (email, nombre e identificador de la cuenta) solo para crear tu cuenta de ChapaGEO, vincularla con una cuenta
+        que ya tenías con el mismo email y dejarte ingresar. No los compartimos con terceros, no los vendemos, no los usamos para publicidad ni para
+        entrenar modelos de IA. El uso que hace ChapaGEO de la información recibida de las APIs de Google cumple la{" "}
+        <a href="https://developers.google.com/terms/api-services-user-data-policy" target="_blank" rel="noopener noreferrer">
+          Política de datos del usuario de los servicios de las APIs de Google
+        </a>
+        , incluidos los requisitos de uso limitado. Podés quitarle el acceso a ChapaGEO cuando quieras desde{" "}
+        <a href="https://myaccount.google.com/permissions" target="_blank" rel="noopener noreferrer">
+          la configuración de tu cuenta de Google
+        </a>
+        ; para borrar también los datos guardados en ChapaGEO, pedí la baja desde <Link href="/contacto">contacto</Link>.
+      </p>
+
+      <h2>6. Transferencia internacional</h2>
       <p>
         Algunos de los proveedores mencionados procesan datos fuera de Argentina. Al usar el servicio aceptás esa transferencia, que se hace con
         proveedores que aplican medidas de seguridad razonables.
       </p>
 
-      <h2>6. Cuánto tiempo los guardamos</h2>
+      <h2>7. Cuánto tiempo los guardamos</h2>
       <p>
         Mientras tu cuenta esté activa. Si pedís la baja, eliminamos tu cuenta, tus clientes, análisis y resultados en un plazo razonable, salvo lo que
         debamos conservar por obligación legal. Los datos de formularios de contacto se guardan mientras sean útiles para responder y hacer seguimiento
         comercial, o hasta que pidas su eliminación.
       </p>
 
-      <h2>7. Seguridad</h2>
+      <h2>8. Seguridad</h2>
       <p>
         Los datos de cada agencia están aislados de los de las demás. Las sesiones de los asistentes de IA que usa ChapaGEO para medir quedan solo en
         nuestros servidores de recolección y nunca se exponen en la web. Ningún sistema es infalible: si detectamos un incidente que afecte tus datos,
         te avisamos.
       </p>
 
-      <h2>8. Tus derechos</h2>
+      <h2>9. Tus derechos</h2>
       <p>
         Podés pedir acceso, rectificación, actualización o supresión de tus datos personales escribiéndonos desde{" "}
         <Link href="/contacto">contacto</Link>. Respondemos dentro de los plazos de la Ley 25.326: 10 días corridos para el acceso y 5 días hábiles
@@ -107,13 +130,13 @@ export default function Page() {
         protección de datos personales.
       </p>
 
-      <h2>9. Datos de los clientes de las agencias</h2>
+      <h2>10. Datos de los clientes de las agencias</h2>
       <p>
         Cuando una agencia carga información de sus clientes, la agencia es responsable de contar con autorización para hacerlo. ChapaGEO trata esa
         información solo para prestar el servicio a la agencia.
       </p>
 
-      <h2>10. Cambios</h2>
+      <h2>11. Cambios</h2>
       <p>
         Si cambiamos esta política, actualizamos la fecha de arriba. Si el cambio es importante, te avisamos por email o dentro del producto. Ver también
         los <Link href="/terminos">términos y condiciones</Link>.

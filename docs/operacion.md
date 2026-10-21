@@ -30,7 +30,7 @@ cp .env.example .env.local      # completá AUTH_SECRET; el resto es opcional
 npm install
 npm run dev                     # web en http://localhost:3000
 npm run worker                  # en otra terminal: worker contra la misma base
-npm test                        # 38 pruebas
+npm test                        # 47 pruebas
 ```
 
 Sin `DATABASE_URL` las dos partes usan `data/chapageo.db`. Para que el worker trabaje sobre la base de producción, poné en su `.env.local` el mismo `DATABASE_URL` y `DATABASE_AUTH_TOKEN` que la web.
@@ -67,6 +67,20 @@ Si copiás la carpeta de sesión a un servidor, copiala por un canal seguro (scp
 - Vercel con Turso (`DATABASE_URL`/`TURSO_DATABASE_URL`, `DATABASE_AUTH_TOKEN`/`TURSO_AUTH_TOKEN`) y `AUTH_SECRET`.
 - Las migraciones (`lib/migrations.ts`) corren solas al primer acceso a la base y quedan registradas en `schema_migrations`. También se pueden correr a mano con `npm run db:migrate`. La migración 002 agrega columnas y tablas y traduce estados viejos (`done`→`completed`, etc.); no borra datos.
 - `vercel.json` ya no agenda crons: el procesamiento es del worker.
+
+### Ingreso con Google (opcional)
+Sin estas variables la web funciona igual, solo con email y contraseña.
+
+1. En [Google Cloud Console](https://console.cloud.google.com/) → «APIs y servicios» → «Pantalla de consentimiento de OAuth»: tipo **Externo**, nombre «ChapaGEO», email de soporte, y el dominio `chapageo.vercel.app` (o el propio). Scopes: solo `openid`, `email` y `profile`, que no requieren revisión de Google. Publicar la app (estado «En producción»); si queda «En prueba», solo entran los usuarios de prueba cargados ahí.
+2. «Credenciales» → «Crear credenciales» → «ID de cliente de OAuth» → **Aplicación web**.
+   - Orígenes autorizados: `https://chapageo.vercel.app` (y `http://localhost:3000` para probar local).
+   - URI de redirección autorizados: `https://chapageo.vercel.app/api/auth/google/callback` (y `http://localhost:3000/api/auth/google/callback`).
+3. En Vercel → Settings → Environment Variables (Production): `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` y `APP_URL=https://chapageo.vercel.app`. Redeploy.
+
+Cómo se comporta:
+- Flujo de código con PKCE, `state` y `nonce` en una cookie firmada de 10 minutos; el `id_token` se verifica contra las claves públicas de Google (emisor, audiencia, vencimiento y email verificado).
+- Si el email ya tenía cuenta, se vincula esa cuenta (la contraseña sigue sirviendo). Si no, se crea una agencia nueva en plan de prueba, igual que el registro, y va a «Nueva marca».
+- Las cuentas creadas con Google no tienen contraseña: si intentan entrar con email y contraseña, la web les indica usar Google.
 
 ### Worker
 Tiene que correr en algún lado para que un análisis avance. Opciones, de menor a mayor costo:
