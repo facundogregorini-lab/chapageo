@@ -1,6 +1,8 @@
 import { LeadForm } from "@/components/LeadForm";
 import { SiteFooter, SiteHeader } from "@/components/SiteChrome";
-import { PLANS, payLink, salesWhatsapp, type PlanId } from "@/lib/config";
+import Link from "next/link";
+import { formatArs, isSubscriptionPlan, PLANS, payLink, planPriceArs, salesWhatsapp, type PlanId } from "@/lib/config";
+import { mpConfigured } from "@/lib/mercadopago";
 
 export const metadata = { title: "Contacto" };
 
@@ -8,6 +10,9 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ o
   const { oferta, d } = await searchParams;
   const plan = oferta && oferta in PLANS ? PLANS[oferta as PlanId] : null;
   const pay = plan ? payLink(plan) : null;
+  // Los planes mensuales se cobran en pesos: mostramos el mismo precio que en /precios.
+  const ars = plan ? planPriceArs(plan) : null;
+  const selfServe = plan ? isSubscriptionPlan(plan.id) && mpConfigured() : false;
   const wa = salesWhatsapp(`Hola! Quiero ${plan ? "el plan " + plan.name : "info de ChapaGEO"}${d ? " para " + d : ""}.`);
   return (
     <>
@@ -25,7 +30,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ o
           {plan ? (
             <div className="mt-6 card p-5">
               <div className="flex items-baseline gap-1">
-                <span className="text-3xl font-bold">US${plan.priceUsd}</span>
+                <span className="text-3xl font-bold">{ars ? formatArs(ars) : `US$${plan.priceUsd}`}</span>
                 <span className="text-sm text-mute">{plan.period === "mes" ? "/ mes" : "pago único"}</span>
               </div>
               <ul className="mt-4 space-y-2 text-sm">
@@ -36,7 +41,11 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ o
                   </li>
                 ))}
               </ul>
-              {pay ? (
+              {selfServe ? (
+                <Link href={`/registro?plan=${plan.id}`} className="btn-primary mt-5 w-full">
+                  Suscribirme con Mercado Pago
+                </Link>
+              ) : pay ? (
                 <a href={pay} className="btn-celeste mt-5 w-full" target="_blank" rel="noopener noreferrer">
                   Pagar ahora con Mercado Pago
                 </a>
@@ -44,16 +53,16 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ o
             </div>
           ) : null}
           <p className="mt-6 text-sm text-mute">
-            Te respondemos en menos de 24 h hábiles. Si preferís, escribinos por WhatsApp
+            Te respondemos en menos de 24 h hábiles.
             {wa ? (
               <>
-                {" "}
+                {" "}Si preferís, escribinos por WhatsApp{" "}
                 <a href={wa} className="font-semibold text-ink underline" target="_blank" rel="noopener noreferrer">
                   acá
                 </a>
+                .
               </>
             ) : null}
-            .
           </p>
         </div>
         <div className="card p-6">

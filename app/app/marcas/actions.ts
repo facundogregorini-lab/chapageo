@@ -8,7 +8,7 @@ import { brandForCtx, deleteBrandCascade, workspaceBrands } from "@/lib/access";
 import { cleanDomain } from "@/lib/analyze";
 import { auditSite } from "@/lib/audit";
 import { DEMO_READONLY, isDemoCtx, requireCtx } from "@/lib/auth";
-import { canCreateBrand, canStartAnalysis } from "@/lib/billing";
+import { analysisCaps, canCreateBrand, canStartAnalysis } from "@/lib/billing";
 import { dispatchRun } from "@/lib/brightdata-batch";
 import { saveAudit } from "@/lib/checker";
 import { isBrightDataId } from "@/lib/collectors/brightdata";
@@ -185,8 +185,9 @@ export async function updatePromptAction(brandId: string, promptId: string, form
 }
 
 export async function setApprovalAction(brandId: string, promptId: string, approve: boolean) {
-  if (!(await editableBrand(brandId))) return;
-  if (approve && (await approvedCount(brandId)) >= LIMITS.maxPrompts) return;
+  const r = await editableBrand(brandId);
+  if (!r) return;
+  if (approve && (await approvedCount(brandId)) >= analysisCaps(r.ctx).maxPrompts) return;
   await run("UPDATE prompts SET approved = ?, updated_at = ? WHERE id = ? AND brand_id = ?", [approve ? 1 : 0, now(), promptId, brandId]);
   revalidatePath(`/app/marcas/${brandId}/preguntas`);
 }

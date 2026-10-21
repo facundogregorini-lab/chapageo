@@ -6,6 +6,7 @@ import { fmtDate } from "@/components/ui";
 import { brandForCtx, listRuns } from "@/lib/access";
 import { collectorShort } from "@/lib/collectors/registry";
 import { workerEnabled } from "@/lib/config";
+import { analysisCaps } from "@/lib/billing";
 import { LIMITS } from "@/lib/limits";
 import { approvedPrompts, collectorAvailability, workers } from "@/lib/queue";
 
@@ -17,6 +18,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
   const isDemo = Number(ctx.workspace.is_demo ?? 0) === 1;
   const [runs, options, prompts, ws] = await Promise.all([listRuns(ctx.workspace.id, id, 30), collectorAvailability(isDemo), approvedPrompts(id), workers()]);
   const base = `/app/marcas/${id}`;
+  const caps = analysisCaps(ctx);
   return (
     <div className="grid gap-6 lg:grid-cols-[1.3fr_1fr]">
       <div className="space-y-3">
@@ -26,9 +28,12 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
           options={options}
           approved={prompts.length}
           maxExecutions={LIMITS.maxExecutionsPerAnalysis}
-          maxReps={LIMITS.maxRepetitions}
+          maxReps={caps.maxReps}
+          maxEngines={caps.maxEngines}
+          planName={caps.planName}
           minPrompts={LIMITS.minPrompts}
-          maxPrompts={LIMITS.maxPrompts}
+          maxPrompts={caps.maxPrompts}
+          promptsHref={`${base}/preguntas`}
           anyWorkerOnline={isDemo || ws.some((w) => w.online)}
           showWorker={!isDemo && workerEnabled()}
           idem={randomUUID()}

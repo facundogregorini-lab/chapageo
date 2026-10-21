@@ -11,6 +11,9 @@ export function LeadForm({
   cta = "Quiero que me contacten",
   compact = false,
   whatsapp,
+  noteLabel = "¿Qué te gustaría saber?",
+  notePlaceholder = "Ej: quiero saber si ChatGPT recomienda a mi competencia cuando buscan estudios contables en Córdoba.",
+  done = "¡Listo! Te escribimos en menos de 24 h hábiles.",
 }: {
   source: string;
   offer?: string;
@@ -19,13 +22,16 @@ export function LeadForm({
   cta?: string;
   compact?: boolean;
   whatsapp?: string | null;
+  noteLabel?: string;
+  notePlaceholder?: string;
+  done?: string;
 }) {
   const [state, action, pending] = useActionState(leadAction, undefined);
   if (state?.ok) {
     return (
       <div className="rounded-2xl border border-ok/30 bg-ok-50 p-5 text-sm">
-        <div className="font-semibold text-ok">¡Listo! Te escribimos en menos de 24 h hábiles.</div>
-        <p className="mt-1 text-mute">Si querés ir más rápido, mandanos un WhatsApp con el dominio de tu marca.</p>
+        <div className="font-semibold text-ok">{done}</div>
+        {whatsapp ? <p className="mt-1 text-mute">Si querés ir más rápido, mandanos un WhatsApp con el dominio de tu marca.</p> : null}
         {whatsapp ? (
           <a href={whatsapp} target="_blank" rel="noopener noreferrer" className="btn-primary btn-sm mt-3">
             Escribir por WhatsApp
@@ -66,8 +72,8 @@ export function LeadForm({
             <input id="lead-domain" name="domain" defaultValue={domain} className="input" placeholder="tumarca.com.ar" />
           </div>
           <div>
-            <label className="label" htmlFor="lead-note">¿Qué te gustaría saber?</label>
-            <textarea id="lead-note" name="note" rows={3} className="input" placeholder="Ej: quiero saber si ChatGPT recomienda a mi competencia cuando buscan estudios contables en Córdoba." />
+            <label className="label" htmlFor="lead-note">{noteLabel}</label>
+            <textarea id="lead-note" name="note" rows={3} className="input" placeholder={notePlaceholder} />
           </div>
         </>
       )}

@@ -65,7 +65,7 @@ export default async function Page({
               <StatusBadge status={run.status} />
             </div>
             <p className="text-sm text-mute">
-              {run.collectors.map(collectorShort).join(", ")} · {run.repetitions} repetición(es) · {progress.total} ejecuciones
+              {run.collectors.map(collectorShort).join(", ")} · {run.repetitions} {run.repetitions === 1 ? "repetición" : "repeticiones"} · {progress.total} ejecuciones
               {run.finished_at ? ` · terminó ${fmtDate(run.finished_at, true)}` : ""}
             </p>
             {run.status_detail ? <p className="mt-1 text-sm text-[#8a5a00]">{run.status_detail}</p> : null}

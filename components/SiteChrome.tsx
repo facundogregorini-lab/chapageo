@@ -52,6 +52,7 @@ export function SiteFooter() {
             <li><Link href="/#faq" className="hover:text-ink">Preguntas frecuentes</Link></li>
             <li><Link href="/privacidad" className="hover:text-ink">Privacidad</Link></li>
             <li><Link href="/terminos" className="hover:text-ink">Términos</Link></li>
+            <li><Link href="/arrepentimiento" className="hover:text-ink">Botón de arrepentimiento</Link></li>
           </ul>
         </div>
       </div>

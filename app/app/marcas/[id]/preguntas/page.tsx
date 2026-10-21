@@ -3,6 +3,7 @@ import { Badge } from "@/components/ui";
 import { DemoReadOnly } from "@/components/ui";
 import { brandForCtx } from "@/lib/access";
 import { isDemoCtx } from "@/lib/auth";
+import { analysisCaps } from "@/lib/billing";
 import { all } from "@/lib/db";
 import { LIMITS } from "@/lib/limits";
 import { helperAvailable } from "@/lib/llm";
@@ -22,7 +23,8 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
   const demo = isDemoCtx(ctx);
   const prompts = (await all("SELECT * FROM prompts WHERE brand_id = ? AND active = 1 ORDER BY created_at", [id])).map((r) => toPrompt(r as Record<string, unknown>));
   const approved = prompts.filter((p) => p.approved).length;
-  const ok = approved >= LIMITS.minPrompts && approved <= LIMITS.maxPrompts;
+  const { maxPrompts, planName } = analysisCaps(ctx);
+  const ok = approved >= LIMITS.minPrompts && approved <= maxPrompts;
   return (
     <fieldset disabled={demo} className="space-y-5">
       {demo ? <DemoReadOnly what="editar preguntas" /> : null}
@@ -31,7 +33,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
           <div>
             <h2 className="font-bold">Preguntas que harían los clientes potenciales</h2>
             <p className="text-sm text-mute">
-              Aprobadas: <strong className={ok ? "text-ok" : "text-bad"}>{approved}</strong> (entre {LIMITS.minPrompts} y {LIMITS.maxPrompts}). Solo las aprobadas
+              Aprobadas: <strong className={ok ? "text-ok" : "text-bad"}>{approved}</strong> (entre {LIMITS.minPrompts} y {maxPrompts}{planName && maxPrompts < LIMITS.maxPrompts ? `, el tope del plan ${planName}` : ""}). Solo las aprobadas
               entran en un análisis. Editar una pregunta la vuelve a dejar pendiente de aprobación.
             </p>
           </div>
@@ -41,7 +43,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
         </div>
         <form action={addPromptAction.bind(null, id)} className="mt-4 grid gap-2 sm:grid-cols-[1fr_auto_auto]">
           <input name="text" required minLength={8} maxLength={300} placeholder="Nueva pregunta, como la escribiría un cliente" className="input" />
-          <select name="category" className="input sm:w-auto">
+          <select name="category" aria-label="Grupo de la pregunta" className="input sm:w-auto">
             {PROMPT_CATEGORIES.map((c) => (
               <option key={c} value={c}>{CATEGORY_LABEL[c]}</option>
             ))}
@@ -62,8 +64,8 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
               {items.map((p) => (
                 <div key={p.id} className="flex flex-col gap-2 px-5 py-3 text-sm lg:flex-row lg:items-center">
                   <form action={updatePromptAction.bind(null, id, p.id)} className="flex flex-1 flex-col gap-2 sm:flex-row">
-                    <input name="text" defaultValue={p.text} minLength={8} maxLength={300} className="input flex-1 py-1.5" />
-                    <select name="category" defaultValue={p.category} className="input py-1.5 text-xs sm:w-auto">
+                    <input name="text" aria-label="Texto de la pregunta" defaultValue={p.text} minLength={8} maxLength={300} className="input flex-1 py-1.5" />
+                    <select name="category" aria-label="Grupo de la pregunta" defaultValue={p.category} className="input py-1.5 text-xs sm:w-auto">
                       {PROMPT_CATEGORIES.map((c) => (
                         <option key={c} value={c}>{CATEGORY_LABEL[c]}</option>
                       ))}

@@ -76,7 +76,7 @@ export default function Page() {
         </li>
       </ul>
       <p>
-        Los informes que compartís por link privado pueden verlos quienes tengan ese link. Podés cambiar el link desde la configuración del cliente para
+        Los informes que compartís por link privado pueden verlos quienes tengan ese link. Podés cambiar el link desde la sección «Informe» del cliente para
         cortar el acceso.
       </p>
       <p>Fuera de estos casos, solo compartimos datos si una autoridad competente lo exige por ley.</p>
