@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { PrintButton } from "@/components/PrintButton";
 import { ReportView } from "@/components/ReportView";
 import { TrackView } from "@/components/Track";
-import { PLANS } from "@/lib/config";
+import { effectivePlan } from "@/lib/auth";
 import { one } from "@/lib/db";
 import { loadReport } from "@/lib/report";
 import { toBrand, type Workspace } from "@/lib/types";
@@ -18,7 +18,7 @@ export default async function Page({ params, searchParams }: { params: Promise<{
   const ws = (await one<Workspace>("SELECT * FROM workspaces WHERE id = ?", [brand.workspace_id]))!;
   const report = await loadReport(brand, run);
   if (!report) notFound();
-  const white = PLANS[ws.plan]?.whiteLabel;
+  const white = effectivePlan(ws).whiteLabel;
   return (
     <main className="mx-auto max-w-6xl px-4 py-8">
       <TrackView name="report_view" props={{ kind: "brand" }} />

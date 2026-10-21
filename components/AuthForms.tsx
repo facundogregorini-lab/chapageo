@@ -46,10 +46,12 @@ export function LoginForm({ next }: { next?: string }) {
   );
 }
 
-export function RegisterForm() {
+export function RegisterForm({ plan, planName }: { plan?: string; planName?: string }) {
   const [state, action, pending] = useActionState(registerAction, undefined);
+  const next = plan ? `/app/plan?plan=${plan}` : undefined;
   return (
     <form action={action} className="space-y-4">
+      <input type="hidden" name="plan" value={plan ?? ""} />
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
           <label className="label" htmlFor="name">Tu nombre</label>
@@ -69,14 +71,18 @@ export function RegisterForm() {
         <input id="password" name="password" type="password" required minLength={8} className="input" autoComplete="new-password" />
       </div>
       {state?.error ? <p className="text-sm text-bad">{state.error}</p> : null}
-      <button className="btn-primary w-full" disabled={pending}>{pending ? "Creando…" : "Crear cuenta gratis"}</button>
-      <p className="text-center text-xs text-mute">Plan de prueba: 1 marca, 10 preguntas y 2 motores. Sin tarjeta.</p>
+      <button className="btn-primary w-full" disabled={pending}>{pending ? "Creando…" : planName ? "Crear cuenta y pagar" : "Crear cuenta gratis"}</button>
+      <p className="text-center text-xs text-mute">
+        {planName
+          ? `Después elegís cómo pagar el plan ${planName} con Mercado Pago. Se cancela cuando quieras.`
+          : "Plan de prueba: 1 marca, 10 preguntas y 2 motores. Sin tarjeta."}
+      </p>
       <p className="text-center text-xs text-mute">
         Al crear la cuenta aceptás los <Link href="/terminos" className="underline">términos</Link> y la{" "}
         <Link href="/privacidad" className="underline">política de privacidad</Link>.
       </p>
       <p className="text-center text-sm text-mute">
-        ¿Ya tenés cuenta? <Link href="/ingresar" className="font-semibold text-ink underline">Ingresá</Link>
+        ¿Ya tenés cuenta? <Link href={next ? `/ingresar?next=${encodeURIComponent(next)}` : "/ingresar"} className="font-semibold text-ink underline">Ingresá</Link>
       </p>
     </form>
   );

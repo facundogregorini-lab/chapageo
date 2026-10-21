@@ -247,6 +247,45 @@ CREATE TABLE IF NOT EXISTS collector_status (
 CREATE UNIQUE INDEX IF NOT EXISTS idx_users_google_sub ON users(google_sub);
 `,
   },
+  {
+    id: "004_suscripciones_mp",
+    // workspaces.plan pasa a ser el plan vigente que calcula lib/billing.ts a partir de las suscripciones.
+    // plan_expires_at: hasta cuándo vale ese plan (NULL = sin vencimiento, p. ej. asignado a mano).
+    sql: `ALTER TABLE workspaces ADD COLUMN plan_expires_at TEXT;
+CREATE TABLE IF NOT EXISTS subscriptions (
+  id TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  user_id TEXT,
+  plan TEXT NOT NULL,
+  provider TEXT NOT NULL DEFAULT 'mercadopago',
+  provider_id TEXT,
+  status TEXT NOT NULL DEFAULT 'creating',
+  payer_email TEXT,
+  amount REAL NOT NULL,
+  currency TEXT NOT NULL DEFAULT 'ARS',
+  checkout_url TEXT,
+  last_charged_at TEXT,
+  next_payment_at TEXT,
+  paid_until TEXT,
+  raw TEXT NOT NULL DEFAULT '{}',
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_subscriptions_provider ON subscriptions(provider, provider_id);
+CREATE INDEX IF NOT EXISTS idx_subscriptions_ws ON subscriptions(workspace_id, status);
+CREATE TABLE IF NOT EXISTS billing_events (
+  id TEXT PRIMARY KEY,
+  provider TEXT NOT NULL,
+  topic TEXT NOT NULL,
+  resource_id TEXT,
+  subscription_id TEXT,
+  result TEXT NOT NULL,
+  payload TEXT NOT NULL DEFAULT '{}',
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_billing_events_res ON billing_events(provider, resource_id, created_at);
+`,
+  },
 ];
 
 function statements(sql: string): string[] {

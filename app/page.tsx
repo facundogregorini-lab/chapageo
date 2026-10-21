@@ -3,7 +3,7 @@ import "./landing.css";
 import { LandingAmbient, LandingFooter, LandingNav } from "@/components/landing/LandingChrome";
 import { LandingFx } from "@/components/landing/LandingFx";
 import { TrackLink, TrackView } from "@/components/Track";
-import { ENGINES, ENGINE_IDS, PLANS, payLink, type PlanId } from "@/lib/config";
+import { ENGINES, ENGINE_IDS, formatArs, isSubscriptionPlan, PLANS, payLink, planPriceArs, type PlanId } from "@/lib/config";
 
 const FAQ = [
   {
@@ -66,8 +66,8 @@ const BRAND_POINTS = [
 const PLAN_ORDER: PlanId[] = ["diagnostico", "marca", "agencia"];
 const PLAN_CTA: Record<string, string> = {
   diagnostico: "Quiero mi diagnóstico",
-  marca: "Empezar monitoreo",
-  agencia: "Hablar como agencia",
+  marca: "Suscribirme",
+  agencia: "Empezar como agencia",
 };
 
 export default function Home() {
@@ -376,12 +376,13 @@ export default function Home() {
           <div className="lx-center" data-rv>
             <div className="lx-eyebrow lx-mono">Precios</div>
             <h2 className="lx-h2">Empezá con un diagnóstico. Seguí si te sirve.</h2>
-            <p className="lx-lead">Pagás en pesos con Mercado Pago o en dólares con tarjeta. Sin permanencia.</p>
+            <p className="lx-lead">Suscripción mensual en pesos con Mercado Pago, alta en minutos. Sin permanencia.</p>
           </div>
           <div className="lx-plans">
             {PLAN_ORDER.map((pid, i) => {
               const p = PLANS[pid];
-              const href = payLink(p) ?? `/contacto?oferta=${p.id}`;
+              const ars = planPriceArs(p);
+              const href = isSubscriptionPlan(p.id) ? `/registro?plan=${p.id}` : (payLink(p) ?? `/contacto?oferta=${p.id}`);
               return (
                 <div key={p.id} className="lx-plan-wrap" data-rv style={{ ["--rv-delay" as string]: `${i * 0.1}s` }}>
                   {p.highlight ? (
@@ -394,8 +395,8 @@ export default function Home() {
                     <h3>{p.name}</h3>
                     <p className="lx-plan-desc">{p.tagline}</p>
                     <div className="lx-plan-price">
-                      <span>US${p.priceUsd}</span>
-                      <span className="lx-plan-per lx-mono">{p.period === "mes" ? "USD / mes" : "pago único"}</span>
+                      <span>{ars ? formatArs(ars) : `US$${p.priceUsd}`}</span>
+                      <span className="lx-plan-per lx-mono">{p.period === "mes" ? (ars ? "ARS / mes" : "USD / mes") : "pago único"}</span>
                     </div>
                     <TrackLink
                       name="pricing_click"

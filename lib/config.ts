@@ -33,9 +33,13 @@ export type Plan = {
   maxEngines: number;
   repetitions: number;
   prospectsPerMonth: number;
+  /** Análisis reales por mes (null = sin tope propio, rigen los límites generales). */
+  analysesPerMonth: number | null;
   whiteLabel: boolean;
   features: string[];
   payEnv?: string;
+  /** Suscripción mensual autogestionable con Mercado Pago, en pesos. Se puede pisar con PLAN_PRICE_ARS_<ID>. */
+  priceArs?: number;
   highlight?: boolean;
 };
 
@@ -51,8 +55,9 @@ export const PLANS: Record<PlanId, Plan> = {
     maxEngines: 2,
     repetitions: 1,
     prospectsPerMonth: 2,
+    analysesPerMonth: 1,
     whiteLabel: false,
-    features: ["1 marca", "10 preguntas", "2 motores", "1 repetición por corrida"],
+    features: ["1 marca", "10 preguntas", "2 motores", "1 análisis por mes, 1 repetición"],
   },
   diagnostico: {
     id: "diagnostico",
@@ -65,6 +70,7 @@ export const PLANS: Record<PlanId, Plan> = {
     maxEngines: 2,
     repetitions: 3,
     prospectsPerMonth: 0,
+    analysesPerMonth: null,
     whiteLabel: false,
     features: [
       "1 marca, 1 país, 3 competidores",
@@ -88,6 +94,7 @@ export const PLANS: Record<PlanId, Plan> = {
     maxEngines: 2,
     repetitions: 3,
     prospectsPerMonth: 0,
+    analysesPerMonth: null,
     whiteLabel: false,
     features: [
       "20 preguntas × 2 motores × 3 repeticiones",
@@ -97,6 +104,7 @@ export const PLANS: Record<PlanId, Plan> = {
       "Reporte mensual + revisión breve",
     ],
     payEnv: "PAY_LINK_MARCA",
+    priceArs: 129000,
   },
   agencia: {
     id: "agencia",
@@ -109,6 +117,7 @@ export const PLANS: Record<PlanId, Plan> = {
     maxEngines: 4,
     repetitions: 3,
     prospectsPerMonth: 15,
+    analysesPerMonth: null,
     whiteLabel: true,
     features: [
       "Pool de 60 preguntas para repartir entre clientes",
@@ -119,6 +128,7 @@ export const PLANS: Record<PlanId, Plan> = {
       "Exportación CSV y links privados para clientes",
     ],
     payEnv: "PAY_LINK_AGENCIA",
+    priceArs: 399000,
   },
 };
 
@@ -138,6 +148,24 @@ export function countryName(code: string) {
 
 export function payLink(plan: Plan): string | null {
   return plan.payEnv ? process.env[plan.payEnv] || null : null;
+}
+
+/** Planes que se contratan solos desde la web con una suscripción de Mercado Pago. */
+export const SUBSCRIPTION_PLANS: PlanId[] = ["marca", "agencia"];
+
+export function isSubscriptionPlan(id: string): id is PlanId {
+  return (SUBSCRIPTION_PLANS as string[]).includes(id);
+}
+
+/** Precio mensual en pesos (los de config son provisorios; se ajustan sin desplegar con PLAN_PRICE_ARS_MARCA, etc.). */
+export function planPriceArs(plan: Plan): number | null {
+  if (plan.priceArs == null) return null;
+  const v = Number(process.env[`PLAN_PRICE_ARS_${plan.id.toUpperCase()}`]);
+  return Number.isFinite(v) && v > 0 ? v : plan.priceArs;
+}
+
+export function formatArs(n: number): string {
+  return "$ " + Math.round(n).toLocaleString("es-AR");
 }
 
 export function salesWhatsapp(text: string): string | null {

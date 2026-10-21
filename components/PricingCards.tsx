@@ -1,11 +1,11 @@
-import { PLANS, payLink, type PlanId } from "@/lib/config";
+import { formatArs, isSubscriptionPlan, PLANS, payLink, planPriceArs, type PlanId } from "@/lib/config";
 import { TrackLink } from "./Track";
 
 const ORDER: PlanId[] = ["diagnostico", "marca", "agencia"];
 const CTA: Record<string, string> = {
   diagnostico: "Quiero mi diagnóstico",
-  marca: "Empezar monitoreo",
-  agencia: "Hablar como agencia",
+  marca: "Suscribirme",
+  agencia: "Empezar como agencia",
 };
 
 export function PricingCards() {
@@ -13,7 +13,8 @@ export function PricingCards() {
     <div className="grid gap-4 md:grid-cols-3">
       {ORDER.map((pid) => {
         const p = PLANS[pid];
-        const href = payLink(p) ?? `/contacto?oferta=${p.id}`;
+        const ars = planPriceArs(p);
+        const href = isSubscriptionPlan(p.id) ? `/registro?plan=${p.id}` : (payLink(p) ?? `/contacto?oferta=${p.id}`);
         return (
           <div key={p.id} className={`card relative flex flex-col p-6 ${p.highlight ? "border-ink shadow-[0_10px_40px_-15px_rgba(11,18,32,0.35)]" : ""}`}>
             {p.highlight ? (
@@ -23,7 +24,7 @@ export function PricingCards() {
             ) : null}
             <div className="text-sm font-semibold text-mute">{p.name}</div>
             <div className="mt-2 flex items-baseline gap-1">
-              <span className="text-4xl font-bold tracking-tight">US${p.priceUsd}</span>
+              <span className="text-4xl font-bold tracking-tight">{ars ? formatArs(ars) : `US$${p.priceUsd}`}</span>
               <span className="text-sm text-mute">{p.period === "mes" ? "/ mes" : "pago único"}</span>
             </div>
             <p className="mt-2 text-sm text-mute">{p.tagline}</p>

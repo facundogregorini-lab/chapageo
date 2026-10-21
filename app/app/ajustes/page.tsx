@@ -40,15 +40,20 @@ export default async function Page() {
             <label className="label">Pie de los reportes</label>
             <input name="report_footer" defaultValue={ctx.workspace.report_footer ?? ""} placeholder="Ej: Preparado por Agencia X · hola@agenciax.com" className="input" />
           </div>
-          {!ctx.plan.whiteLabel ? <p className="text-xs text-mute">El white-label (logo, color y pie en reportes) se activa con el plan Agencia.</p> : null}
+          {!ctx.plan.whiteLabel ? <p className="text-xs text-mute">El white-label (logo, color y pie en reportes) se activa con el plan Agencia. <a href="/app/plan?plan=agencia" className="underline">Ver planes</a></p> : null}
           <button className="btn-primary">Guardar</button>
         </form>
         <div className="space-y-5">
           <div className="card p-6">
-            <h2 className="font-bold">Límites de uso</h2>
+            <div className="flex items-center justify-between">
+              <h2 className="font-bold">Límites de uso · plan {ctx.plan.name}</h2>
+              <a href="/app/plan" className="text-sm font-semibold text-celeste-700 hover:underline">Cambiar plan</a>
+            </div>
             <ul className="mt-3 space-y-1.5 text-sm">
-              <li className="flex justify-between"><span className="text-mute">Clientes</span><span>{brands.length} / {LIMITS.maxClientsPerAgency}</span></li>
-              <li className="flex justify-between"><span className="text-mute">Preguntas por análisis</span><span>{LIMITS.minPrompts}–{LIMITS.maxPrompts}</span></li>
+              <li className="flex justify-between"><span className="text-mute">Clientes</span><span>{brands.length} / {Math.min(ctx.plan.maxBrands, LIMITS.maxClientsPerAgency)}</span></li>
+              <li className="flex justify-between"><span className="text-mute">Preguntas por análisis</span><span>{LIMITS.minPrompts}–{Math.min(ctx.plan.promptPool, LIMITS.maxPrompts)}</span></li>
+              <li className="flex justify-between"><span className="text-mute">Motores y repeticiones</span><span>{ctx.plan.maxEngines} motores · {ctx.plan.repetitions} rep.</span></li>
+              {ctx.plan.analysesPerMonth != null ? <li className="flex justify-between"><span className="text-mute">Análisis por mes</span><span>{ctx.plan.analysesPerMonth}</span></li> : null}
               <li className="flex justify-between"><span className="text-mute">Ejecuciones por análisis</span><span>hasta {LIMITS.maxExecutionsPerAnalysis}</span></li>
               <li className="flex justify-between"><span className="text-mute">Ejecuciones por día</span><span>hasta {LIMITS.maxDailyExecutionsPerAgency}</span></li>
               <li className="flex justify-between"><span className="text-mute">Análisis en curso a la vez</span><span>{LIMITS.maxActiveAnalysesPerAgency}</span></li>

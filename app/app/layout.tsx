@@ -17,7 +17,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         </div>
         <div className="mx-3 rounded-xl border border-line bg-paper px-3 py-2.5">
           <div className="truncate text-sm font-semibold">{ctx.workspace.name}</div>
-          <div className="mt-0.5 text-xs text-mute">{Number(ctx.workspace.is_demo ?? 0) ? "Espacio de demostración" : "Agencia"}</div>
+          <div className="mt-0.5 text-xs text-mute">
+            {Number(ctx.workspace.is_demo ?? 0) ? "Espacio de demostración" : (
+              <Link href="/app/plan" className="hover:underline">Plan {ctx.plan.name}</Link>
+            )}
+          </div>
         </div>
         <nav className="mt-4 flex-1 space-y-0.5 overflow-y-auto px-3 text-sm">
           <NavLink href="/app" exact>Clientes</NavLink>
@@ -33,6 +37,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <div className="px-3 pb-1 pt-4 text-[11px] font-semibold uppercase tracking-wide text-mute">Crecer</div>
           <NavLink href="/app/prospeccion">Prospección</NavLink>
           {ctx.isAdmin ? <NavLink href="/app/validacion">Validación (PMF)</NavLink> : null}
+          <NavLink href="/app/plan">Plan y pago</NavLink>
           <NavLink href="/app/ajustes">Ajustes</NavLink>
         </nav>
         <div className="border-t border-line px-5 py-4 text-xs text-mute">
@@ -47,6 +52,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <Logo />
           <div className="flex gap-3 text-sm font-semibold">
             <Link href="/app">Clientes</Link>
+            <Link href="/app/plan">Plan</Link>
             <Link href="/app/ajustes">Ajustes</Link>
           </div>
         </div>

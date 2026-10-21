@@ -29,7 +29,7 @@ export default function Page() {
           <div className="eyebrow">Precios</div>
           <h1 className="mt-3 text-4xl font-bold tracking-tight">Pagás por lo que te sirve, en pesos o en dólares.</h1>
           <p className="mt-3 text-mute">
-            Precios en dólares de referencia; con Mercado Pago pagás en pesos al tipo de cambio del día. Si querés probar primero, el{" "}
+            Los planes mensuales se pagan en pesos con una suscripción de Mercado Pago: te das de alta solo y lo cancelás cuando quieras. Si querés probar primero, el{" "}
             <Link href="/checker" className="font-semibold text-ink underline">checker</Link> es gratis.
           </p>
         </div>

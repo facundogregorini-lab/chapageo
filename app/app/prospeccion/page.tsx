@@ -28,7 +28,7 @@ export default async function Page() {
           <CheckerForm endpoint="/api/prospect" resultBase="/auditoria" extra={{ mode: "prospect" }} />
         ) : (
           <div className="card p-6 text-sm">
-            Usaste todas las auditorías de este mes. <Link href="/precios" className="font-semibold underline">Pasá al plan Agencia</Link> para tener 15 por mes.
+            Usaste todas las auditorías de este mes. <Link href="/app/plan?plan=agencia" className="font-semibold underline">Pasá al plan Agencia</Link> para tener 15 por mes.
           </div>
         )}
         <div className="card overflow-hidden">

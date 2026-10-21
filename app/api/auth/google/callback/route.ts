@@ -29,7 +29,7 @@ export async function GET(req: NextRequest) {
     return fail("google");
   }
 
-  const res = NextResponse.redirect(new URL(created ? "/app/marcas/nueva" : state.next, req.url));
+  const res = NextResponse.redirect(new URL(created && !state.next.startsWith("/app/plan") ? "/app/marcas/nueva" : state.next, req.url));
   res.cookies.delete({ name: GOOGLE_STATE_COOKIE, path: "/api/auth/google" });
   res.cookies.set(SESSION_COOKIE, await signSession(userId), sessionCookieOptions);
   return res;

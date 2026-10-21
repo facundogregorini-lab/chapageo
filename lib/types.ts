@@ -24,6 +24,7 @@ export type Workspace = {
   logo_url: string | null;
   report_footer: string | null;
   is_demo?: number;
+  plan_expires_at?: string | null;
   created_at: string;
 };
 

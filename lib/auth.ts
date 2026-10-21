@@ -1,6 +1,6 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { PLANS } from "./config";
+import { PLANS, type Plan } from "./config";
 import { one } from "./db";
 import { SESSION_COOKIE, signSession, verifySession } from "./session";
 import type { User, Workspace } from "./types";
@@ -24,7 +24,14 @@ export async function endSession() {
   (await cookies()).delete(SESSION_COOKIE);
 }
 
-export type Ctx = { user: User; workspace: Workspace; plan: (typeof PLANS)[keyof typeof PLANS]; isAdmin: boolean };
+export type Ctx = { user: User; workspace: Workspace; plan: Plan; isAdmin: boolean };
+
+/** Plan vigente: el guardado en el workspace, salvo que su período pago haya vencido. */
+export function effectivePlan(ws: Pick<Workspace, "plan" | "plan_expires_at">, at = new Date()): Plan {
+  const plan = PLANS[ws.plan] ?? PLANS.prueba;
+  if (plan.id !== "prueba" && ws.plan_expires_at && new Date(ws.plan_expires_at) <= at) return PLANS.prueba;
+  return plan;
+}
 
 export async function getCtx(): Promise<Ctx | null> {
   const userId = await verifySession((await cookies()).get(SESSION_COOKIE)?.value);
@@ -34,7 +41,7 @@ export async function getCtx(): Promise<Ctx | null> {
   const workspace = await one<Workspace>("SELECT * FROM workspaces WHERE id = ?", [user.workspace_id]);
   if (!workspace) return null;
   const admins = (process.env.ADMIN_EMAILS ?? "").split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
-  return { user, workspace, plan: PLANS[workspace.plan] ?? PLANS.prueba, isAdmin: admins.length === 0 || admins.includes(user.email.toLowerCase()) };
+  return { user, workspace, plan: effectivePlan(workspace), isAdmin: admins.length === 0 || admins.includes(user.email.toLowerCase()) };
 }
 
 export async function requireCtx(): Promise<Ctx> {
