@@ -69,7 +69,7 @@ Si copiás la carpeta de sesión a un servidor, copiala por un canal seguro (scp
 - `vercel.json` ya no agenda crons: el procesamiento es del worker.
 
 ### Suscripciones con Mercado Pago (alta autogestionable)
-Flujo: `/precios` → «Suscribirme» → `/registro?plan=…` → `/app/plan` → checkout de Mercado Pago → vuelve a `/app/plan` y el plan queda activo. Usa la API de suscripciones sin plan asociado (`POST /preapproval`, en pesos, mensual). Sin `MP_ACCESS_TOKEN` la página de planes deriva a contacto.
+Flujo: `/precios` → «Suscribirme» → `/registro?plan=…` → `/app/plan` → checkout de Mercado Pago → vuelve a `/app/plan` y el plan queda activo. Cada alta crea un plan de suscripción (`POST /preapproval_plan`, en pesos, mensual) y manda a su checkout: la persona entra con su cuenta de Mercado Pago, sin que ChapaGEO le pida el email. La suscripción resultante trae `preapproval_plan_id` y así se asocia al workspace. Sin `MP_ACCESS_TOKEN` la página de planes deriva a contacto.
 
 **Cómo queda el plan vigente** (`lib/billing.ts`): `workspaces.plan` + `workspaces.plan_expires_at` se recalculan desde la tabla `subscriptions` cada vez que Mercado Pago avisa algo o la agencia abre «Plan y pago».
 - `authorized` con cobro: acceso hasta 1 mes después del último cobro + 3 días de gracia. Sin cobro todavía: 3 días provisorios.
@@ -84,10 +84,10 @@ Flujo: `/precios` → «Suscribirme» → `/registro?plan=…` → `/app/plan` �
 3. Entrá a Mercado Pago Developers con el usuario **vendedor de prueba**, creá una app ahí y copiá sus «Credenciales de producción» (`APP_USR-…`): en suscripciones, las pruebas se hacen con las credenciales del vendedor de prueba. Ese valor va en `MP_ACCESS_TOKEN` y poné `MP_TEST_MODE=1`.
 4. En esa app → «Webhooks» → «Configurar notificaciones», modo productivo, URL `https://chapageo.vercel.app/api/mercadopago/webhook`, eventos **«Planes y suscripciones»** (`subscription_preapproval` y `subscription_authorized_payment`). Guardá y copiá la **clave secreta** a `MP_WEBHOOK_SECRET`.
 5. En Vercel → Settings → Environment Variables (Preview y/o Production): `MP_ACCESS_TOKEN`, `MP_WEBHOOK_SECRET`, `MP_TEST_MODE=1`, `APP_URL=https://chapageo.vercel.app`. Redeploy.
-6. Registrate en la web con cualquier email, elegí un plan y en «Email de tu cuenta de Mercado Pago» poné el email del **comprador de prueba**. En el checkout iniciá sesión con ese comprador y pagá con una [tarjeta de prueba](https://www.mercadopago.com.ar/developers/es/docs/subscriptions/additional-content/your-integrations/test/cards) (titular `APRO`).
+6. Registrate en la web con cualquier email, elegí un plan y en el checkout iniciá sesión con ese comprador y pagá con una [tarjeta de prueba](https://www.mercadopago.com.ar/developers/es/docs/subscriptions/additional-content/your-integrations/test/cards) (titular `APRO`).
 7. Al volver, `/app/plan` muestra el plan activo. Los avisos quedan en la tabla `billing_events`.
 
-**Producción:** repetir 1 y 4 con la cuenta real de Mercado Pago (credenciales de producción de la cuenta real), sacar `MP_TEST_MODE` y ajustar los precios con `PLAN_PRICE_ARS_MARCA` / `PLAN_PRICE_ARS_AGENCIA`. Mercado Pago exige que el email del pagador sea el de la cuenta con la que paga; por eso se pide aparte del email de la cuenta de ChapaGEO.
+**Producción:** repetir 1 y 4 con la cuenta real de Mercado Pago (credenciales de producción de la cuenta real), sacar `MP_TEST_MODE` y ajustar los precios con `PLAN_PRICE_ARS_MARCA` / `PLAN_PRICE_ARS_AGENCIA`.
 
 ### Ingreso con Google (opcional)
 Sin estas variables la web funciona igual, solo con email y contraseña.

@@ -292,6 +292,13 @@ CREATE TABLE IF NOT EXISTS billing_events (
 CREATE INDEX IF NOT EXISTS idx_billing_events_res ON billing_events(provider, resource_id, created_at);
 `,
   },
+  {
+    id: "006_checkout_sin_email",
+    // Alta por plan de Mercado Pago (sin pedir email): la suscripción se asocia por el id del plan.
+    sql: `ALTER TABLE subscriptions ADD COLUMN provider_plan_id TEXT;
+CREATE INDEX IF NOT EXISTS idx_subscriptions_plan ON subscriptions(provider, provider_plan_id);
+`,
+  },
 ];
 
 function statements(sql: string): string[] {
