@@ -186,6 +186,17 @@ export async function createAnalysis(input: CreateAnalysisInput): Promise<Run> {
   if (total > LIMITS.maxExecutionsPerAnalysis)
     throw new UserError(`Este análisis tendría ${total} ejecuciones y el máximo por análisis es ${LIMITS.maxExecutionsPerAnalysis}.`);
 
+  if (isDemo) {
+    // La demo la comparten todos y sus análisis solo avanzan con la página abierta: uno abandonado no puede
+    // trabar al próximo visitante. Se cierran con lo obtenido los de este cliente y los de hace más de 15 minutos.
+    const stale = new Date(Date.now() - 15 * 60_000).toISOString();
+    const open = await all<{ id: string }>(
+      "SELECT id FROM runs WHERE workspace_id = ? AND status IN ('pending','running','requires_intervention') AND (brand_id = ? OR created_at < ?)",
+      [workspaceId, brandId, stale],
+    );
+    for (const r of open) await closeAnalysis(workspaceId, r.id);
+  }
+
   const active = await one<{ n: number }>("SELECT COUNT(*) AS n FROM runs WHERE workspace_id = ? AND status IN ('pending','running')", [workspaceId]);
   if (Number(active?.n ?? 0) >= LIMITS.maxActiveAnalysesPerAgency)
     throw new UserError(`Ya tenés ${active?.n} análisis en curso. Esperá a que terminen para iniciar otro.`);

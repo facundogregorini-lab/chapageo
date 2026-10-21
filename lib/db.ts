@@ -80,7 +80,13 @@ async function maybeSeed() {
   const r = await getClient().execute("SELECT COUNT(*) AS n FROM workspaces");
   if (Number(r.rows[0].n) > 0) return;
   const { seedDemo } = await import("./seed");
-  await seedDemo();
+  try {
+    await seedDemo();
+  } catch (e) {
+    // Dos instancias nuevas sembrando a la vez: la otra ya creó la demo (mismos ids), no es un error.
+    if (/UNIQUE constraint failed: workspaces\.id/.test(String((e as Error)?.message))) return;
+    throw e;
+  }
 }
 
 export async function db(): Promise<Client> {

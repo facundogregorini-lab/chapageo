@@ -47,3 +47,14 @@ test("no procesa análisis de otro espacio ni de espacios reales", async () => {
   await dbm.run("UPDATE runs SET workspace_id = ? WHERE id = ?", [real.ws, run.id]);
   assert.equal(await step.advanceDemoRun(real.ws, run.id), 0);
 });
+
+test("demo compartida: un análisis abandonado no traba el próximo", async () => {
+  const a = await setupAgency("Demo3", { demo: true });
+  const first = await q.createAnalysis({ workspaceId: a.ws, brandId: a.brand, collectors: ["demo_chatgpt"], repetitions: 1, idempotencyKey: "d3a" });
+  // Otro visitante inicia uno nuevo en el mismo cliente sin esperar al anterior.
+  const second = await q.createAnalysis({ workspaceId: a.ws, brandId: a.brand, collectors: ["demo_chatgpt"], repetitions: 1, idempotencyKey: "d3b" });
+  assert.notEqual(second.id, first.id);
+  const old = await dbm.one<{ status: string }>("SELECT status FROM runs WHERE id = ?", [first.id]);
+  assert.notEqual(old?.status, "pending");
+  assert.notEqual(old?.status, "running");
+});
