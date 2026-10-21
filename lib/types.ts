@@ -147,6 +147,7 @@ export type ResponseRow = {
   session_type: string | null;
   screenshot_id: string | null;
   started_at: string | null;
+  claimed_at?: string | null;
   answer: string | null;
   sources: Source[];
   mentions: Mention[];

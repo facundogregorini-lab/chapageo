@@ -8,6 +8,8 @@ export function useTempDb() {
   process.env.DATABASE_URL = `file:${path.join(dir, "test.db")}`;
   delete process.env.TURSO_DATABASE_URL;
   process.env.DEMO_SEED = "0";
+  // Los tests de cola usan los conectores del worker; en producción están ocultos por defecto.
+  process.env.WORKER_ENABLED ??= "1";
   return process.env.DATABASE_URL;
 }
 

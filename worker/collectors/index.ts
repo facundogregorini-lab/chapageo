@@ -4,11 +4,10 @@
 //   y no fue excluida con WORKER_DISABLE_API=1.
 // - Demo: siempre (solo procesa análisis de espacios demo).
 //
-// Para sumar Bright Data o DataForSEO más adelante: crear un Collector con method
-// "third_party_capture" que devuelva el mismo CollectResult y registrarlo acá y en
-// lib/collectors/registry.ts. No hace falta tocar la cola ni las métricas.
+// - Bright Data: lo procesa la web en lotes; el worker lo toma solo con WORKER_BRIGHTDATA=1.
 
 import { apiCollector } from "../../lib/collectors/api";
+import { BRIGHTDATA_IDS, brightDataCollector, brightDataConfig, isBrightDataId } from "../../lib/collectors/brightdata";
 import { demoCollector } from "../../lib/collectors/demo";
 import { COLLECTORS, type CollectorId } from "../../lib/collectors/registry";
 import type { Collector } from "../../lib/collectors/types";
@@ -28,6 +27,7 @@ export function buildCollector(id: CollectorId): Collector {
   if (id === "chatgpt_web") return webCollector(chatgptSpec(), browserOptionsFromEnv());
   if (id === "gemini_web") return webCollector(geminiSpec(), browserOptionsFromEnv());
   if (def.method === "demo") return demoCollector(id, def.engine);
+  if (isBrightDataId(id)) return brightDataCollector(id);
   return apiCollector(id, def.engine);
 }
 
@@ -36,6 +36,8 @@ export function enabledCollectors(): Collector[] {
   if (process.env.WORKER_DISABLE_API !== "1") {
     for (const def of Object.values(COLLECTORS)) if (def.method === "official_api" && def.envKey && process.env[def.envKey]) ids.push(def.id);
   }
+  // Bright Data lo procesa la web (lib/brightdata-batch.ts). El worker solo lo toma si se pide.
+  if (process.env.WORKER_BRIGHTDATA === "1") for (const id of BRIGHTDATA_IDS) if (!("missing" in brightDataConfig(id))) ids.push(id);
   ids.push("demo_chatgpt", "demo_gemini");
   return ids.map(buildCollector);
 }

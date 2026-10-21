@@ -19,6 +19,19 @@ export function CheckerReport({ r }: { r: CheckerResult }) {
         <div className="rounded-xl border border-sol/40 bg-sol-50 px-4 py-3 text-sm text-[#6b4700]">
           <strong>Resultado simulado.</strong> Este chequeo es antiguo y usó respuestas de demostración.
         </div>
+      ) : r.pending ? (
+        <div className="flex items-center gap-3 rounded-xl border border-celeste-100 bg-paper px-4 py-3 text-sm">
+          <div className="h-5 w-5 shrink-0 animate-spin rounded-full border-2 border-celeste-100 border-t-celeste" />
+          <span>
+            <strong>ChatGPT todavía está respondiendo.</strong> La revisión técnica ya está lista; las respuestas aparecen acá solas en uno o dos minutos.
+            Podés dejar esta página abierta o volver más tarde con el mismo link.
+          </span>
+        </div>
+      ) : r.method === "brightdata" ? (
+        <div className="rounded-xl border border-line bg-paper px-4 py-3 text-sm text-mute">
+          Respuestas de la <strong>interfaz web de ChatGPT</strong>, como las ve una persona, capturadas con Bright Data. Es una muestra de 5 preguntas: el
+          análisis completo suma más preguntas, Gemini y Perplexity, y repeticiones.
+        </div>
       ) : !r.engine ? (
         <div className="rounded-xl border border-line bg-paper px-4 py-3 text-sm text-mute">
           Este chequeo incluye solo la revisión técnica: el servidor no tiene un motor de IA configurado para la vista previa.

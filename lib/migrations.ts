@@ -248,7 +248,13 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_users_google_sub ON users(google_sub);
 `,
   },
   {
-    id: "004_suscripciones_mp",
+    id: "004_respuesta_cruda",
+    // Registro crudo del proveedor (Bright Data) para auditar cómo se leyó cada respuesta.
+    sql: `ALTER TABLE responses ADD COLUMN raw_json TEXT;
+`,
+  },
+  {
+    id: "005_suscripciones_mp",
     // workspaces.plan pasa a ser el plan vigente que calcula lib/billing.ts a partir de las suscripciones.
     // plan_expires_at: hasta cuándo vale ese plan (NULL = sin vencimiento, p. ej. asignado a mano).
     sql: `ALTER TABLE workspaces ADD COLUMN plan_expires_at TEXT;

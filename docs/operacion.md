@@ -103,6 +103,30 @@ Cómo se comporta:
 - Si el email ya tenía cuenta, se vincula esa cuenta (la contraseña sigue sirviendo). Si no, se crea una agencia nueva en plan de prueba, igual que el registro, y va a «Nueva marca».
 - Las cuentas creadas con Google no tienen contraseña: si intentan entrar con email y contraseña, la web les indica usar Google.
 
+### Bright Data (captura sin worker)
+
+Bright Data abre ChatGPT, Gemini o Perplexity con su infraestructura y nos devuelve la respuesta visible con sus fuentes. Corre desde la web: no hace falta worker.
+
+1. Crear la cuenta en brightdata.com y copiar la API key (Account settings → API key).
+2. En Vercel → Settings → Environment Variables: `BRIGHTDATA_API_KEY` = esa key (también se acepta `BRIGHTDATA_API_TOKEN`). Redeploy.
+3. Los ids de los scrapers ya vienen cargados: ChatGPT `gd_m7aof0k82r803d5bjm`, Gemini `gd_mbz66arm2mf9cu856y`, Perplexity `gd_m7dhdot1vw9a7gc1n`. Solo hace falta `BRIGHTDATA_DATASET_*` si Bright Data los cambia.
+4. En la app: Ajustes → «Probar conexión» en cada motor. Hace UNA consulta real (≈ USD 0,0015) y, si vuelve texto, el motor queda disponible para los análisis.
+
+Cómo funciona:
+
+- **Consulta suelta** (prueba de conexión, worker): `POST /datasets/v3/scrape` (sincrónico). Si Bright Data tarda más de ~1 minuto contesta 202 con un `snapshot_id`, y seguimos por `/progress` y `/snapshot` sin volver a pedir (no se cobra dos veces). En código: `queryBrightData(proveedor, pregunta)` en `lib/collectors/brightdata.ts` devuelve texto, fuentes (URLs), proveedor, fecha, modelo y el registro crudo.
+- **Análisis**: al crear el análisis se manda un lote por motor (`POST /datasets/v3/trigger`). Las respuestas se guardan cuando alguien abre el análisis o el panel. Si se cierra la pestaña, Bright Data sigue trabajando y se guarda todo al volver.
+- Entradas: las del panel de cada scraper. ChatGPT `{url, prompt, country, web_search, additional_prompt}`, Gemini `{url, prompt, index}`, Perplexity `{url, prompt}`. Solo ChatGPT recibe el país.
+- Salida: los campos cambian entre scrapers, así que se leen de forma defensiva (texto en `answer_text`/`answer_text_markdown`/`answer`; fuentes en `citations`, `sources`, `search_sources`, `links_attached`). El registro crudo queda guardado en `responses.raw_json` para revisar cómo se leyó.
+- Errores: cada pedido tiene timeout. Los GET se reintentan hasta 2 veces (red, 429, 5xx). Los POST, una sola vez y solo con 429/502/503, que indican que Bright Data no procesó el pedido; un POST que pudo haberse procesado no se repite. 401/403 deja el motor no disponible hasta corregir la key.
+- Cada ejecución queda como «Captura web · Bright Data», con el país pedido al proveedor (no verificado por nosotros), el modelo y si hubo búsqueda web.
+
+- **Checker gratis de la home**: 5 preguntas a ChatGPT en un solo pedido sincrónico. Si Bright Data tarda más de lo que permite la función (~85 s), el resultado se guarda como pendiente y la página del resultado lo completa sola cuando el snapshot está listo. Usa el mismo tope diario que los análisis y además `CHECKER_BRIGHTDATA_MAX_PER_DAY` (40 chequeos). Sin cupo o con error, cae a la API oficial si hay clave, o muestra solo la revisión técnica.
+- Los motores de Bright Data se pueden elegir apenas está cargada la key, sin la prueba de Ajustes. Solo se bloquean si Bright Data rechaza la key (401/403); la prueba de Ajustes los vuelve a habilitar.
+- Sin `WORKER_ENABLED=1` no se muestran los conectores del worker ni sus avisos.
+
+Costos y topes: ≈ USD 1,50 cada 1.000 registros. `BRIGHTDATA_MAX_RECORDS_PER_DAY` (300 por defecto) corta los envíos del día aunque haya otro error. Los errores vuelven a la cola con el tope de intentos normal.
+
 ### Worker
 Tiene que correr en algún lado para que un análisis avance. Opciones, de menor a mayor costo:
 

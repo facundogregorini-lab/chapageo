@@ -16,6 +16,14 @@ export const ENGINES: Record<
 
 export const ENGINE_IDS = Object.keys(ENGINES) as EngineId[];
 
+/**
+ * Si se usan conectores que corren en un worker propio (captura con navegador o APIs oficiales).
+ * Apagado por defecto: en producción todo pasa por Bright Data desde la web. WORKER_ENABLED=1 los muestra.
+ */
+export function workerEnabled(): boolean {
+  return /^(1|true)$/i.test(process.env.WORKER_ENABLED?.trim() ?? "");
+}
+
 export function engineConfigured(id: EngineId): boolean {
   return Boolean(process.env[ENGINES[id].envKey]);
 }

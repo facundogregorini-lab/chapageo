@@ -9,9 +9,11 @@
 
 import { createHash, randomBytes } from "node:crypto";
 import { analyzeAnswer } from "./analyze";
+import { brightDataConfig, isBrightDataId } from "./collectors/brightdata";
 import { COLLECTORS, isCollectorId, type CollectorId } from "./collectors/registry";
 import type { CollectResult } from "./collectors/types";
 import { all, db, id, now, one, parseJson, run } from "./db";
+import { workerEnabled } from "./config";
 import { LIMITS } from "./limits";
 import { toBrand, toPrompt, toResponse, toRun, type Brand, type JobStatus, type Prompt, type ResponseRow, type Run } from "./types";
 
@@ -68,12 +70,30 @@ export async function collectorAvailability(isDemo: boolean): Promise<CollectorA
   const online = new Set(ws.filter((w) => w.online).flatMap((w) => w.collectors));
   const known = new Set(ws.flatMap((w) => w.collectors));
   return Object.values(COLLECTORS)
-    .filter((c) => (isDemo ? c.method === "demo" : c.method !== "demo"))
+    .filter((c) => (isDemo ? c.method === "demo" : c.method !== "demo" && (workerEnabled() || isBrightDataId(c.id))))
     .map((c) => {
       if (c.method === "demo") {
         return { id: c.id, label: c.label, method: c.method, status: "available" as const, reason: null, verifiedAt: null, workerOnline: true, selectable: true };
       }
       const s = statuses.find((x) => x.collector === c.id);
+      if (c.method === "third_party_capture" && isBrightDataId(c.id)) {
+        // Bright Data corre desde la web: depende de la configuración de este servidor, no de un worker.
+        const cfg = brightDataConfig(c.id);
+        // Con la key cargada se puede elegir sin la prueba manual. Solo se bloquea si Bright Data
+        // rechazó la key (401/403) o el operador lo pausó; la prueba de Ajustes lo vuelve a habilitar.
+        const blocked = s?.status === "unavailable" || s?.status === "requires_intervention";
+        const status = ("missing" in cfg ? "not_configured" : blocked ? s!.status : "available") as CollectorAvailability["status"];
+        return {
+          id: c.id,
+          label: c.label,
+          method: c.method,
+          status,
+          reason: "missing" in cfg ? cfg.missing : blocked ? (s?.reason ?? null) : null,
+          verifiedAt: s?.verified_at ?? null,
+          workerOnline: true,
+          selectable: status === "available",
+        };
+      }
       const status = (s?.status ?? (known.has(c.id) ? "unverified" : "not_configured")) as CollectorAvailability["status"];
       return {
         id: c.id,
@@ -262,14 +282,14 @@ export async function recoverStaleJobs(staleMs = LIMITS.staleJobMs): Promise<str
   const requeued = await c.execute({
     sql: `UPDATE responses SET status = 'pending', lease_id = NULL, worker_id = NULL, error_code = 'interrumpido',
             error = 'La ejecución se interrumpió (worker sin señal); se reintenta.', next_attempt_at = ?
-          WHERE status = 'running' AND COALESCE(heartbeat_at, claimed_at) < ? AND attempts < max_attempts
+          WHERE status = 'running' AND COALESCE(heartbeat_at, claimed_at) < ? AND (lease_id IS NULL OR lease_id NOT LIKE 'bd:%') AND attempts < max_attempts
           RETURNING run_id`,
     args: [now(), before],
   });
   const failed = await c.execute({
     sql: `UPDATE responses SET status = 'failed', lease_id = NULL, error_code = 'interrumpido',
             error = 'La ejecución se interrumpió y agotó sus intentos.', executed_at = ?
-          WHERE status = 'running' AND COALESCE(heartbeat_at, claimed_at) < ? AND attempts >= max_attempts
+          WHERE status = 'running' AND COALESCE(heartbeat_at, claimed_at) < ? AND (lease_id IS NULL OR lease_id NOT LIKE 'bd:%') AND attempts >= max_attempts
           RETURNING run_id`,
     args: [now(), before],
   });
@@ -330,6 +350,17 @@ function backoffMs(attempt: number) {
  * si la fila fue recuperada por otro, el resultado se descarta (no hay duplicados).
  * Devuelve el estado final de la fila o null si se perdió el lease.
  */
+/** El registro crudo se guarda si es razonable (≤ 400 KB); si no, se omite antes que cortarlo. */
+function rawJson(raw: unknown): string | null {
+  if (raw === undefined || raw === null) return null;
+  try {
+    const s = JSON.stringify(raw);
+    return s.length <= 400_000 ? s : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function finishJob(job: ClaimedJob, result: CollectResult): Promise<JobStatus | null> {
   const ts = now();
   const conditions = JSON.stringify({
@@ -354,12 +385,12 @@ export async function finishJob(job: ClaimedJob, result: CollectResult): Promise
     const r = await run(
       `UPDATE responses SET status = ?, answer = ?, sources = ?, mentions = ?, other_brands = ?, brand_mentioned = ?, brand_position = ?, own_cited = ?,
          sentiment = ?, sentiment_score = ?, model = ?, cost_usd = ?, latency_ms = ?, executed_at = ?, screenshot_id = ?, error = ?, error_code = ?,
-         observed_country = ?, location_verification = ?, search_mode = ?, session_type = ?, conditions = ?, lease_id = NULL, next_attempt_at = NULL
+         observed_country = ?, location_verification = ?, search_mode = ?, session_type = ?, conditions = ?, raw_json = ?, lease_id = NULL, next_attempt_at = NULL
        WHERE id = ? AND lease_id = ? AND status = 'running'`,
       [
         result.status, text, JSON.stringify(result.citations), JSON.stringify(a.mentions), JSON.stringify(a.otherBrands), a.brandMentioned ? 1 : 0,
         a.brandPosition, a.ownCited ? 1 : 0, a.sentiment?.label ?? null, a.sentiment?.score ?? null, result.modelIfVisible, result.costUsd ?? 0,
-        result.duration, result.collectedAt, result.screenshotReference, result.error?.message ?? null, result.error?.code ?? null, ...common, job.id, job.lease_id,
+        result.duration, result.collectedAt, result.screenshotReference, result.error?.message ?? null, result.error?.code ?? null, ...common, rawJson(result.raw), job.id, job.lease_id,
       ],
     );
     if (!r.rowsAffected) return null;
