@@ -5,6 +5,7 @@ import { NewAnalysisForm } from "@/components/NewAnalysisForm";
 import { fmtDate } from "@/components/ui";
 import { brandForCtx, listRuns } from "@/lib/access";
 import { collectorShort } from "@/lib/collectors/registry";
+import { workerEnabled } from "@/lib/config";
 import { LIMITS } from "@/lib/limits";
 import { approvedPrompts, collectorAvailability, workers } from "@/lib/queue";
 
@@ -29,6 +30,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
           minPrompts={LIMITS.minPrompts}
           maxPrompts={LIMITS.maxPrompts}
           anyWorkerOnline={isDemo || ws.some((w) => w.online)}
+          showWorker={!isDemo && workerEnabled()}
           idem={randomUUID()}
         />
         <p className="text-xs text-mute">

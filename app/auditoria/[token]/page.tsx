@@ -3,9 +3,10 @@ import { CheckerReport } from "@/components/CheckerReport";
 import { LeadForm } from "@/components/LeadForm";
 import { SiteFooter, SiteHeader } from "@/components/SiteChrome";
 import { TrackView } from "@/components/Track";
-import type { CheckerResult } from "@/lib/checker";
+import { AutoRefresh } from "@/components/AutoRefresh";
+import { resumeChecker, type CheckerResult } from "@/lib/checker";
 import { salesWhatsapp } from "@/lib/config";
-import { one, parseJson } from "@/lib/db";
+import { one, parseJson, run } from "@/lib/db";
 import type { Workspace } from "@/lib/types";
 
 export const metadata = { title: "Resultado del análisis", robots: { index: false } };
@@ -17,8 +18,17 @@ export default async function Page({ params }: { params: Promise<{ token: string
     [token],
   );
   if (!row) notFound();
-  const r = parseJson<CheckerResult | null>(row.result, null);
+  let r = parseJson<CheckerResult | null>(row.result, null);
   if (!r) notFound();
+  if (r.pending) {
+    // Bright Data seguía respondiendo cuando se armó el chequeo: probamos completarlo.
+    const done = await resumeChecker(r).catch(() => null);
+    if (done) {
+      await run("UPDATE audits SET result = ? WHERE id = ?", [JSON.stringify(done), row.id]);
+      r = done;
+    }
+  }
+  const refresh = r.pending ? <AutoRefresh seconds={8} /> : null;
   const ws = row.kind === "prospect" && row.workspace_id ? await one<Workspace>("SELECT * FROM workspaces WHERE id = ?", [row.workspace_id]) : null;
 
   if (ws) {
@@ -26,6 +36,7 @@ export default async function Page({ params }: { params: Promise<{ token: string
     return (
       <main className="mx-auto max-w-5xl px-4 py-10">
         <TrackView name="report_view" props={{ kind: "prospect" }} />
+        {refresh}
         <header className="mb-8 flex flex-wrap items-center justify-between gap-3 border-b-4 pb-4" style={{ borderColor: ws.brand_color }}>
           <div className="flex items-center gap-3">
             {ws.logo_url ? <img src={ws.logo_url} alt={ws.name} className="h-9 w-auto" /> : null}
@@ -46,6 +57,7 @@ export default async function Page({ params }: { params: Promise<{ token: string
     <>
       <SiteHeader />
       <main className="mx-auto max-w-5xl px-4 py-12">
+        {refresh}
         <div className="eyebrow">Resultado del checker</div>
         <h1 className="mt-2 text-3xl font-bold tracking-tight">
           {r.brandName} <span className="text-mute">· {r.domain}</span>

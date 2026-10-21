@@ -7,7 +7,7 @@ import { COUNTRIES } from "@/lib/config";
 const STEPS = [
   "Leyendo tu sitio y tu robots.txt…",
   "Armando preguntas reales de tu rubro…",
-  "Preguntándole a la IA con búsqueda web…",
+  "Haciéndole las preguntas a la IA…",
   "Buscando tu marca en cada respuesta…",
   "Juntando las fuentes que cita…",
 ];
@@ -26,7 +26,7 @@ export function CheckerForm({ initialDomain = "", initialCategory = "", endpoint
 
   useEffect(() => {
     if (!loading) return;
-    const t = setInterval(() => setStep((s) => Math.min(s + 1, STEPS.length - 1)), 4500);
+    const t = setInterval(() => setStep((s) => Math.min(s + 1, STEPS.length - 1)), 9000);
     return () => clearInterval(t);
   }, [loading]);
 
@@ -68,7 +68,7 @@ export function CheckerForm({ initialDomain = "", initialCategory = "", endpoint
       <div className="card p-8 text-center">
         <div className="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-celeste-100 border-t-celeste" />
         <div className="mt-5 font-semibold">{STEPS[step]}</div>
-        <p className="mt-1 text-sm text-mute">Tarda entre 20 y 50 segundos. No cierres esta pestaña.</p>
+        <p className="mt-1 text-sm text-mute">Tarda alrededor de un minuto. No cierres esta pestaña.</p>
         <div className="mx-auto mt-5 flex max-w-xs gap-1">
           {STEPS.map((_, i) => (
             <div key={i} className={`h-1 flex-1 rounded-full ${i <= step ? "bg-celeste" : "bg-line"}`} />

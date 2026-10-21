@@ -100,6 +100,10 @@ Cómo funciona:
 - Errores: cada pedido tiene timeout. Los GET se reintentan hasta 2 veces (red, 429, 5xx). Los POST, una sola vez y solo con 429/502/503, que indican que Bright Data no procesó el pedido; un POST que pudo haberse procesado no se repite. 401/403 deja el motor no disponible hasta corregir la key.
 - Cada ejecución queda como «Captura web · Bright Data», con el país pedido al proveedor (no verificado por nosotros), el modelo y si hubo búsqueda web.
 
+- **Checker gratis de la home**: 5 preguntas a ChatGPT en un solo pedido sincrónico. Si Bright Data tarda más de lo que permite la función (~85 s), el resultado se guarda como pendiente y la página del resultado lo completa sola cuando el snapshot está listo. Usa el mismo tope diario que los análisis y además `CHECKER_BRIGHTDATA_MAX_PER_DAY` (40 chequeos). Sin cupo o con error, cae a la API oficial si hay clave, o muestra solo la revisión técnica.
+- Los motores de Bright Data se pueden elegir apenas está cargada la key, sin la prueba de Ajustes. Solo se bloquean si Bright Data rechaza la key (401/403); la prueba de Ajustes los vuelve a habilitar.
+- Sin `WORKER_ENABLED=1` no se muestran los conectores del worker ni sus avisos.
+
 Costos y topes: ≈ USD 1,50 cada 1.000 registros. `BRIGHTDATA_MAX_RECORDS_PER_DAY` (300 por defecto) corta los envíos del día aunque haya otro error. Los errores vuelven a la cola con el tope de intentos normal.
 
 ### Worker

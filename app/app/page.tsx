@@ -3,7 +3,7 @@ import { StatusBadge } from "@/components/analysis";
 import { Badge, Empty, fmtDate } from "@/components/ui";
 import { workspaceBrands } from "@/lib/access";
 import { requireCtx } from "@/lib/auth";
-import { countryName } from "@/lib/config";
+import { countryName, workerEnabled } from "@/lib/config";
 import { analysisMetrics, headlineSlice, latestRun, pct } from "@/lib/metrics";
 import { collectorAvailability, workers } from "@/lib/queue";
 
@@ -39,7 +39,7 @@ export default async function Clientes() {
       <div className="card p-4 text-sm">
         <div className="flex flex-wrap items-center gap-2">
           <span className="font-semibold">Recolección:</span>
-          {isDemo && !online.length ? <Badge tone="ok">demo: las respuestas simuladas se generan desde la web</Badge> : online.length ? <Badge tone="ok">worker activo · señal {fmtDate(online[0].heartbeat_at, true)}</Badge> : <Badge tone="sol">worker sin señal: los análisis quedan en cola</Badge>}
+          {isDemo && !online.length ? <Badge tone="ok">demo: las respuestas simuladas se generan desde la web</Badge> : !workerEnabled() ? null : online.length ? <Badge tone="ok">worker activo · señal {fmtDate(online[0].heartbeat_at, true)}</Badge> : <Badge tone="sol">worker sin señal: los análisis quedan en cola</Badge>}
           {avail.map((a) => (
             <Badge key={a.id} tone={AVAIL_TONE[a.status]} title={a.reason ?? undefined}>
               {a.label}: {AVAIL_TEXT[a.status]}

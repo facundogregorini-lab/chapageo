@@ -22,6 +22,7 @@ export function NewAnalysisForm({
   minPrompts,
   maxPrompts,
   anyWorkerOnline,
+  showWorker,
   idem,
 }: {
   brandId: string;
@@ -32,6 +33,8 @@ export function NewAnalysisForm({
   minPrompts: number;
   maxPrompts: number;
   anyWorkerOnline: boolean;
+  /** Si hay conectores de worker (captura propia o API). Sin worker, todo va por Bright Data. */
+  showWorker: boolean;
   /** Generada en el servidor: evita diferencias de hidratación y hace idempotente el doble envío. */
   idem: string;
 }) {
@@ -47,7 +50,11 @@ export function NewAnalysisForm({
       <input type="hidden" name="idem" value={idem} />
       <div>
         <h2 className="font-bold">Motores</h2>
-        <p className="text-sm text-mute">Solo se pueden elegir los que el worker verificó con una consulta real. Captura web y API oficial son mediciones distintas.</p>
+        <p className="text-sm text-mute">
+          {showWorker
+            ? "Solo se pueden elegir los que el worker verificó con una consulta real. Captura web y API oficial son mediciones distintas."
+            : "Cada pregunta se hace en la interfaz web del asistente, como la vería una persona, y se guardan la respuesta y sus fuentes."}
+        </p>
         <div className="mt-3 grid gap-2 sm:grid-cols-2">
           {options.map((o) => {
             const on = selected.includes(o.id);
@@ -69,7 +76,7 @@ export function NewAnalysisForm({
                   <span className="font-semibold">{o.label}</span>
                   <span className="block text-xs">
                     {STATUS_TEXT[o.status] ?? o.status}
-                    {o.selectable && !o.workerOnline ? " · worker apagado: arranca cuando vuelva" : ""}
+                    {showWorker && o.selectable && !o.workerOnline ? " · worker apagado: arranca cuando vuelva" : ""}
                     {o.reason && !o.selectable ? ` · ${o.reason}` : ""}
                   </span>
                 </span>
@@ -96,7 +103,7 @@ export function NewAnalysisForm({
         </div>
       </div>
       {!promptsOk ? <p className="rounded-xl bg-sol-50 px-3 py-2 text-sm text-[#6b4700]">Necesitás entre {minPrompts} y {maxPrompts} preguntas aprobadas (hay {approved}).</p> : null}
-      {!anyWorkerOnline && selected.some((id) => !id.startsWith("brightdata_")) ? (
+      {showWorker && !anyWorkerOnline && selected.some((id) => !id.startsWith("brightdata_")) ? (
         <p className="rounded-xl bg-paper px-3 py-2 text-xs text-mute">
           El worker no está enviando señal en este momento. El análisis queda en cola y avanza cuando el worker vuelva; podés cerrar la pestaña.
         </p>
@@ -105,7 +112,11 @@ export function NewAnalysisForm({
       <button className="btn-primary" disabled={pending || !selected.length || !promptsOk || tooMany}>
         {pending ? "Creando…" : `Iniciar análisis (${total} ejecuciones)`}
       </button>
-      <p className="text-xs text-mute">El análisis corre en el worker, no en tu navegador: podés cerrar la pestaña y volver después.</p>
+      <p className="text-xs text-mute">
+        {showWorker
+          ? "El análisis corre en el worker, no en tu navegador: podés cerrar la pestaña y volver después."
+          : "Suele tardar unos minutos. Podés cerrar la pestaña: los resultados se guardan cuando vuelvas."}
+      </p>
     </form>
   );
 }
