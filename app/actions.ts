@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { checkPassword, endSession, hashPassword, startSession } from "@/lib/auth";
+import { isSubscriptionPlan } from "@/lib/config";
 import { id, now, one, run } from "@/lib/db";
 import { logEvent } from "@/lib/events";
 
@@ -17,7 +18,7 @@ export async function loginAction(_: FormState, form: FormData): Promise<FormSta
   if (!user || !(await checkPassword(password, user.password_hash))) return { error: "Email o contraseña incorrectos." };
   await startSession(user.id);
   const next = str(form, "next");
-  redirect(next.startsWith("/app") ? next : "/app");
+  redirect(next.startsWith("/app") && !next.startsWith("//") ? next : "/app");
 }
 
 export async function registerAction(_: FormState, form: FormData): Promise<FormState> {
@@ -40,9 +41,11 @@ export async function registerAction(_: FormState, form: FormData): Promise<Form
     wsId,
     ts,
   ]);
-  await logEvent("signup", { email, company });
+  const plan = str(form, "plan");
+  await logEvent("signup", { email, company, plan: plan || null });
   await startSession(userId);
-  redirect("/app/marcas/nueva");
+  // Si vino eligiendo un plan pago, sigue directo al checkout; si no, arranca con el plan de prueba.
+  redirect(isSubscriptionPlan(plan) ? `/app/plan?plan=${plan}` : "/app/marcas/nueva");
 }
 
 export async function logoutAction() {

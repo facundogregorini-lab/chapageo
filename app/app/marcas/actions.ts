@@ -8,13 +8,14 @@ import { brandForCtx, deleteBrandCascade, workspaceBrands } from "@/lib/access";
 import { cleanDomain } from "@/lib/analyze";
 import { auditSite } from "@/lib/audit";
 import { requireCtx } from "@/lib/auth";
+import { canCreateBrand, canStartAnalysis } from "@/lib/billing";
 import { dispatchRun } from "@/lib/brightdata-batch";
 import { saveAudit } from "@/lib/checker";
 import { isBrightDataId } from "@/lib/collectors/brightdata";
 import { db, id, now, one, run, token } from "@/lib/db";
 import { logEvent } from "@/lib/events";
 import { LIMITS } from "@/lib/limits";
-import { closeAnalysis, createAnalysis, UserError } from "@/lib/queue";
+import { approvedPrompts, closeAnalysis, createAnalysis, UserError } from "@/lib/queue";
 import { readSite } from "@/lib/site-reader";
 import { classifyPrompt, suggestPrompts } from "@/lib/suggest";
 import { PROMPT_CATEGORIES, type PromptCategory } from "@/lib/types";
@@ -59,6 +60,8 @@ export async function createBrandAction(payload: unknown): Promise<{ error?: str
   if (!DOMAIN_RE.test(domain)) return { error: "El dominio no parece válido." };
   const brands = await workspaceBrands(ctx.workspace.id);
   if (brands.length >= LIMITS.maxClientsPerAgency) return { error: `El límite actual es de ${LIMITS.maxClientsPerAgency} clientes por agencia.` };
+  const planBlock = canCreateBrand(ctx, brands.length);
+  if (planBlock) return { error: planBlock };
   const competitors = parseCompetitors(p.competitors);
   const aliases = p.aliases.filter(Boolean);
   const approved = p.prompts.filter((q) => q.approved).length;
@@ -212,13 +215,17 @@ export type StartState = { error?: string } | undefined;
 
 export async function startAnalysisAction(brandId: string, _: StartState, form: FormData): Promise<StartState> {
   const { ctx } = await brandForCtx(brandId);
+  const collectors = [...new Set(form.getAll("collectors").map(String))];
+  const repetitions = Number(form.get("repetitions") ?? 1);
+  const planBlock = await canStartAnalysis(ctx, { prompts: (await approvedPrompts(brandId)).length, collectors: collectors.length, repetitions });
+  if (planBlock) return { error: planBlock };
   let runId: string;
   try {
     const r = await createAnalysis({
       workspaceId: ctx.workspace.id,
       brandId,
-      collectors: form.getAll("collectors").map(String),
-      repetitions: Number(form.get("repetitions") ?? 1),
+      collectors,
+      repetitions,
       idempotencyKey: String(form.get("idem") || randomUUID()).slice(0, 80),
     });
     runId = r.id;

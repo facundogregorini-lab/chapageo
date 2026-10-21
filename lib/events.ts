@@ -22,6 +22,7 @@ export const FUNNEL: { name: string; label: string }[] = [
   { name: "lead_submit", label: "Leads (pidieron diagnóstico)" },
   { name: "pricing_click", label: "Clic en un plan" },
   { name: "signup", label: "Registros" },
+  { name: "checkout_started", label: "Checkout de suscripción iniciado" },
   { name: "brand_created", label: "Marcas configuradas" },
   { name: "run_done", label: "Corridas completadas" },
   { name: "report_view", label: "Reportes compartidos vistos" },
