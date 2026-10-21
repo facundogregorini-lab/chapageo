@@ -6,18 +6,33 @@ import { TrackView } from "@/components/Track";
 import { AutoRefresh } from "@/components/AutoRefresh";
 import { resumeChecker, type CheckerResult } from "@/lib/checker";
 import { salesWhatsapp } from "@/lib/config";
-import { one, parseJson, run } from "@/lib/db";
+import { isEphemeralDb, one, parseJson, run } from "@/lib/db";
 import type { Workspace } from "@/lib/types";
 
 export const metadata = { title: "Resultado del análisis", robots: { index: false } };
 
+type AuditRow = { id: string; kind: string; result: string; workspace_id: string | null };
+
+/**
+ * El checker redirige acá apenas guarda. Si la base tiene réplicas de lectura, la fila puede tardar
+ * un instante en aparecer: reintentamos unos segundos antes de dar 404.
+ */
+async function findAudit(token: string): Promise<AuditRow | null> {
+  for (let i = 0; i < 5; i++) {
+    const row = await one<AuditRow>("SELECT id, kind, result, workspace_id FROM audits WHERE share_token = ? AND kind IN ('checker','prospect')", [token]);
+    if (row) return row;
+    await new Promise((r) => setTimeout(r, 600));
+  }
+  return null;
+}
+
 export default async function Page({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
-  const row = await one<{ id: string; kind: string; result: string; workspace_id: string | null }>(
-    "SELECT id, kind, result, workspace_id FROM audits WHERE share_token = ? AND kind IN ('checker','prospect')",
-    [token],
-  );
-  if (!row) notFound();
+  const row = await findAudit(token);
+  if (!row) {
+    console.error("auditoria no encontrada", { token, ephemeralDb: isEphemeralDb() });
+    notFound();
+  }
   let r = parseJson<CheckerResult | null>(row.result, null);
   if (!r) notFound();
   if (r.pending) {

@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { cleanDomain } from "@/lib/analyze";
 import { runChecker, saveAudit } from "@/lib/checker";
-import { one } from "@/lib/db";
+import { isEphemeralDb, one } from "@/lib/db";
 import { logEvent } from "@/lib/events";
 
 // Bright Data puede tardar hasta ~1 minuto; si tarda más, el resultado se completa al abrirlo.
@@ -41,6 +41,7 @@ export async function POST(req: Request) {
   try {
     const result = await runChecker({ domain, category: input.category, country: input.country, city: input.city });
     const saved = await saveAudit("checker", result, { domain });
+    console.log("checker guardado", { token: saved.shareToken, method: result.method ?? null, pending: Boolean(result.pending), ephemeralDb: isEphemeralDb() });
     await logEvent("checker_done", { domain, mentioned: result.mentioned, total: result.total, simulated: result.simulated }, input.visitor);
     return NextResponse.json({ token: saved.shareToken });
   } catch (e) {
