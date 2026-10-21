@@ -30,12 +30,12 @@ cp .env.example .env.local      # completá AUTH_SECRET; el resto es opcional
 npm install
 npm run dev                     # web en http://localhost:3000
 npm run worker                  # en otra terminal: worker contra la misma base
-npm test                        # 45 pruebas
+npm test                        # 47 pruebas
 ```
 
 Sin `DATABASE_URL` las dos partes usan `data/chapageo.db`. Para que el worker trabaje sobre la base de producción, poné en su `.env.local` el mismo `DATABASE_URL` y `DATABASE_AUTH_TOKEN` que la web.
 
-`/demo` entra a la agencia de demostración: clientes ficticios con los conectores `demo_chatgpt` y `demo_gemini`, que generan respuestas simuladas y rotuladas como tales. Con `npm run worker` corriendo se puede lanzar un análisis demo y ver el progreso en vivo.
+`/demo` entra a la agencia de demostración: clientes ficticios con los conectores `demo_chatgpt` y `demo_gemini`, que generan respuestas simuladas y rotuladas como tales. Los análisis demo no necesitan worker: como son simulados y no usan red, la página del análisis los avanza desde la web de a pocas ejecuciones mientras está abierta (`/api/runs/[id]/demo-step`, solo para análisis demo del espacio demo). Si se cierra la pestaña, siguen cuando se vuelve. Los análisis reales siempre los hace el worker.
 
 ## 3. Inicializar y renovar la sesión de un asistente web
 

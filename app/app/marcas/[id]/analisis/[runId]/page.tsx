@@ -41,6 +41,8 @@ export default async function Page({
     collectorAvailability(Number(ctx.workspace.is_demo ?? 0) === 1),
   ]);
   const open = run.status === "pending" || run.status === "running";
+  // En la demo las respuestas simuladas se generan desde la web: no hace falta worker.
+  const demoInWeb = Number(run.is_demo) === 1 && Number(ctx.workspace.is_demo ?? 0) === 1;
   const online = ws.some((w) => w.online);
   const base = `/app/marcas/${id}`;
   const blocked = avail.filter((a) => run.collectors.includes(a.id) && a.status === "requires_intervention");
@@ -50,7 +52,7 @@ export default async function Page({
 
   return (
     <div className="space-y-6">
-      {open || run.status === "requires_intervention" ? <AutoRefresh seconds={5} /> : null}
+      {open || run.status === "requires_intervention" ? <AutoRefresh seconds={demoInWeb ? 3 : 5} demoStepUrl={demoInWeb && open ? `/api/runs/${run.id}/demo-step` : undefined} /> : null}
       <div className="card p-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
@@ -87,8 +89,9 @@ export default async function Page({
         </div>
         {open ? (
           <p className="mt-3 text-xs text-mute">
-            {online ? "El worker está procesando la cola." : "El worker no está enviando señal: el análisis sigue en cola y continúa cuando vuelva."} Podés cerrar esta pestaña; los
-            resultados parciales se van guardando.
+            {demoInWeb
+              ? "Demo: las respuestas simuladas se generan desde la web mientras esta página está abierta. Si la cerrás, el análisis sigue cuando vuelvas. Los análisis reales los hace el worker y avanzan aunque cierres la pestaña."
+              : `${online ? "El worker está procesando la cola." : "El worker no está enviando señal: el análisis sigue en cola y continúa cuando vuelva."} Podés cerrar esta pestaña; los resultados parciales se van guardando.`}
           </p>
         ) : null}
         {blocked.length ? (

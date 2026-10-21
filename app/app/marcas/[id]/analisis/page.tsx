@@ -28,7 +28,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
           maxReps={LIMITS.maxRepetitions}
           minPrompts={LIMITS.minPrompts}
           maxPrompts={LIMITS.maxPrompts}
-          anyWorkerOnline={ws.some((w) => w.online)}
+          anyWorkerOnline={isDemo || ws.some((w) => w.online)}
           idem={randomUUID()}
         />
         <p className="text-xs text-mute">

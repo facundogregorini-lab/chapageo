@@ -23,14 +23,14 @@
 **Conectores** (interfaz única `collect(...)` en `lib/collectors/types.ts`)
 - `chatgpt_web` y `gemini_web`: captura propia con Playwright. Conversación nueva por consulta, detección de fin por estabilidad del texto con timeout configurable, extracción solo de la respuesta final con sus links, captura de pantalla del mensaje, cierre de recursos. Ante CAPTCHA, login requerido, bloqueo o límite de uso se detiene y marca `requires_intervention`.
 - `chatgpt_api`, `gemini_api`, `claude_api`, `perplexity_api`: solo si el operador configura la clave en el worker; se muestran como «API oficial», nunca como captura web. Una captura fallida nunca se reemplaza con una respuesta de API.
-- `demo_chatgpt` y `demo_gemini`: solo dentro del espacio demo, rotulados como simulados en toda la UI, el informe y el CSV.
+- `demo_chatgpt` y `demo_gemini`: solo dentro del espacio demo, rotulados como simulados en toda la UI, el informe y el CSV. Avanzan desde la web mientras la página del análisis está abierta, así que la demo funciona sin worker.
 - La interfaz admite agregar Bright Data o DataForSEO como `third_party_capture` más adelante. No hay integraciones falsas.
 
 **Ubicación y condiciones**: cada ejecución guarda país solicitado, país observado (si lo hay), tipo de verificación (`verificada`, `declarada_por_operador`, `no_verificada`, `no_aplica`), idioma, tipo de sesión, modo de búsqueda observado y modelo visible. Los resultados se presentan como una muestra bajo esas condiciones.
 
 ## Qué se probó
 
-`npm test`: 45 pruebas, todas pasan.
+`npm test`: 47 pruebas, todas pasan.
 - Aislamiento entre agencias (análisis, ejecuciones, evidencia, cierre).
 - Métricas: denominadores, errores fuera del denominador, cuota contando una vez por respuesta, grupos separados, alias y límites de palabra, orden de mención vs. puesto en lista, el falso positivo de títulos en negrita («Muy fuerte en stock»).
 - Cola: idempotencia, validaciones, reintentos sin duplicados, lease perdido, CAPTCHA → intervención → reencolado.
@@ -47,7 +47,7 @@
 1. **La captura real de ChatGPT y Gemini no está verificada.** El entorno donde se construyó bloquea la salida a chatgpt.com y gemini.google.com, así que el conector se probó contra una página local que imita la interfaz, no contra los sitios reales. Los selectores pueden necesitar ajustes en la primera prueba real. Por diseño, estos conectores quedan «sin verificar» y no se pueden elegir hasta que `npm run worker:probe -- chatgpt_web` funcione.
 2. Las interfaces de ChatGPT y Gemini cambian seguido y sus términos de uso restringen el acceso automatizado. Es un riesgo de operación y de cumplimiento a evaluar. El sistema no evade verificaciones ni rota cuentas: si aparece una, frena y avisa.
 3. La ubicación de ejecución no se verifica sola: con un worker en una IP argentina, el operador la declara con `WORKER_EGRESS_COUNTRY=AR` y queda registrada como «declarada por el operador».
-4. Sin un worker prendido, los análisis quedan en cola (la web lo avisa).
+4. Sin un worker prendido, los análisis reales quedan en cola (la web lo avisa). La demo no lo necesita.
 5. Las capturas se guardan en la base; con volumen conviene moverlas a un bucket.
 6. Fuera de alcance en esta versión: facturación, white-label avanzado y cambios automáticos en las webs de los clientes.
 
