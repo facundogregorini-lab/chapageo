@@ -95,7 +95,7 @@ export default async function Page({
           <p className="mt-3 text-xs text-mute">
             {demoInWeb
               ? "Demo: las respuestas simuladas se generan desde la web mientras esta página está abierta. Si la cerrás, el análisis sigue cuando vuelvas. Los análisis reales los hace el worker y avanzan aunque cierres la pestaña."
-              : `${viaBrightData ? "Bright Data está respondiendo las preguntas: suele tardar unos minutos. " : ""}${needsWorker ? (online ? "El worker está procesando la cola. " : "El worker no está enviando señal: las ejecuciones de captura propia o API siguen en cola y continúan cuando vuelva. ") : ""}Podés cerrar esta pestaña; los resultados se guardan cuando vuelvas.`}
+              : `${viaBrightData ? "Estamos haciendo las preguntas en cada asistente: suele tardar unos minutos. " : ""}${needsWorker ? (online ? "El worker está procesando la cola. " : "El worker no está enviando señal: las ejecuciones de captura propia o API siguen en cola y continúan cuando vuelva. ") : ""}Podés cerrar esta pestaña; los resultados se guardan cuando vuelvas.`}
           </p>
         ) : null}
         {blocked.length ? (

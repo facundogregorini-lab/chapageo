@@ -78,25 +78,25 @@ export const COLLECTORS: Record<CollectorId, CollectorDef> = {
     id: "brightdata_chatgpt",
     engine: "chatgpt",
     method: "third_party_capture",
-    label: "ChatGPT · vía Bright Data",
+    label: "ChatGPT · interfaz web",
     envKey: "BRIGHTDATA_API_KEY",
-    description: "Bright Data abre chatgpt.com, hace la pregunta y nos devuelve la respuesta visible con sus fuentes. No necesita worker.",
+    description: "Se abre chatgpt.com, se hace la pregunta y se guarda la respuesta visible con sus fuentes. No necesita worker.",
   },
   brightdata_gemini: {
     id: "brightdata_gemini",
     engine: "gemini",
     method: "third_party_capture",
-    label: "Gemini · vía Bright Data",
+    label: "Gemini · interfaz web",
     envKey: "BRIGHTDATA_API_KEY",
-    description: "Bright Data abre Gemini, hace la pregunta y nos devuelve la respuesta visible con sus fuentes. No necesita worker.",
+    description: "Se abre Gemini, se hace la pregunta y se guarda la respuesta visible con sus fuentes. No necesita worker.",
   },
   brightdata_perplexity: {
     id: "brightdata_perplexity",
     engine: "perplexity",
     method: "third_party_capture",
-    label: "Perplexity · vía Bright Data",
+    label: "Perplexity · interfaz web",
     envKey: "BRIGHTDATA_API_KEY",
-    description: "Bright Data abre Perplexity, hace la pregunta y nos devuelve la respuesta visible con sus fuentes. No necesita worker.",
+    description: "Se abre Perplexity, se hace la pregunta y se guarda la respuesta visible con sus fuentes. No necesita worker.",
   },
   demo_chatgpt: {
     id: "demo_chatgpt",
@@ -123,7 +123,7 @@ export function isCollectorId(x: string): x is CollectorId {
 export const METHOD_LABEL: Record<CollectionMethod, string> = {
   web_capture: "Captura de interfaz web",
   official_api: "API oficial del modelo",
-  third_party_capture: "Captura de interfaz web vía Bright Data",
+  third_party_capture: "Captura de interfaz web",
   demo: "Datos de demostración (simulados)",
 };
 
@@ -136,6 +136,6 @@ export function collectorShort(id: string): string {
   if (!isCollectorId(id)) return id;
   const c = COLLECTORS[id];
   if (c.method === "demo") return `${ENGINES[c.engine].label} (demo)`;
-  if (c.method === "third_party_capture") return `${ENGINES[c.engine].label} (Bright Data)`;
+  if (c.method === "third_party_capture") return `${ENGINES[c.engine].label} (interfaz web)`;
   return `${ENGINES[c.engine].label} (${c.method === "web_capture" ? "web" : "API"})`;
 }

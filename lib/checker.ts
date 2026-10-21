@@ -185,7 +185,7 @@ export async function resumeChecker(r: CheckerResult, f?: FetchLike): Promise<Ch
       const records = await downloadSnapshot(fetchImpl, cfg, r.pending.snapshotId, { timeoutMs: 20_000 });
       if (records) return summarize({ ...r, pending: null }, bdAnswers(records, prompts, brand, Date.parse(r.pending.since), r.country));
     }
-    if (status === "failed" || status === "canceled") return giveUp("Bright Data no pudo completar la consulta.");
+    if (status === "failed" || status === "canceled") return giveUp("No se pudo completar la consulta a ChatGPT.");
   } catch (e) {
     if (e instanceof BrightDataError && !e.transient) return giveUp(e.message);
   }

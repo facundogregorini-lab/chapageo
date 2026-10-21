@@ -3,7 +3,6 @@ import { Badge } from "@/components/ui";
 import { prospectsThisMonth, workspaceBrands } from "@/lib/access";
 import { requireCtx } from "@/lib/auth";
 import { isBrightDataId } from "@/lib/collectors/brightdata";
-import { workerEnabled } from "@/lib/config";
 import { isEphemeralDb } from "@/lib/db";
 import { LIMITS } from "@/lib/limits";
 import { helperAvailable } from "@/lib/llm";
@@ -94,7 +93,7 @@ export default async function Page() {
               </li>
             </ul>
             <p className="mt-3 text-xs text-mute">
-              Los motores los opera el equipo de ChapaGEO {workerEnabled() ? "(Bright Data o el worker)" : "a través de Bright Data"}. La agencia no necesita claves de API, cuentas ni extensiones.
+              Los motores los opera el equipo de ChapaGEO. La agencia no necesita claves de API, cuentas ni extensiones.
             </p>
           </div>
         </div>
