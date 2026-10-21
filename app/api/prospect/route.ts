@@ -3,8 +3,7 @@ import { prospectsThisMonth } from "@/lib/access";
 import { getCtx } from "@/lib/auth";
 import { runChecker, saveAudit } from "@/lib/checker";
 
-// Bright Data puede tardar hasta ~1 minuto; si tarda más, el resultado se completa al abrirlo.
-export const maxDuration = 120;
+export const maxDuration = 60;
 
 export async function POST(req: Request) {
   const ctx = await getCtx();

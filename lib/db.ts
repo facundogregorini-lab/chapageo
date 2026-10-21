@@ -59,8 +59,20 @@ function getClient(): Client {
   return client;
 }
 
+/** En Vercel, cualquier base en archivo (sin Turso o con DATABASE_URL=file:…) vive en una sola instancia. */
 export function isEphemeralDb() {
-  return !DB_URL && Boolean(process.env.VERCEL);
+  return Boolean(process.env.VERCEL) && databaseUrl().startsWith("file:");
+}
+
+/** Para los logs: esquema y host de la base, sin credenciales. */
+export function dbFingerprint(): string {
+  const url = databaseUrl();
+  try {
+    const u = new URL(url);
+    return u.protocol.startsWith("file") ? url : `${u.protocol}//${u.host}`;
+  } catch {
+    return url.split("?")[0];
+  }
 }
 
 async function maybeSeed() {

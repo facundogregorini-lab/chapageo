@@ -1,6 +1,7 @@
 // Checker rápido: lo usa la landing (gratis, sin registro) y la prospección de agencias.
 // 5 preguntas de descubrimiento × 1 motor + auditoría técnica del sitio. Nunca se simula.
-// 1) Bright Data: la interfaz web real de ChatGPT, en un solo pedido, dentro del tope diario.
+// 1) Bright Data: la interfaz web real de ChatGPT, en un solo lote asíncrono, dentro del tope diario.
+//    El chequeo se guarda pendiente y la página del resultado lo completa cuando llega la respuesta.
 // 2) Si no hay Bright Data o se agotó el cupo: API oficial, rotulada como tal.
 // 3) Sin ninguno de los dos: solo la auditoría y las preguntas.
 
@@ -14,16 +15,16 @@ import {
   brightDataConfig,
   buildInput,
   downloadSnapshot,
+  errorFrom,
   normalizePrompt,
   recordPrompt,
   recordToResult,
-  scrapeSync,
   snapshotStatus,
-  waitForSnapshot,
+  triggerSnapshot,
   type BrightDataRecord,
   type FetchLike,
 } from "./collectors/brightdata";
-import { id, now, one, run, token } from "./db";
+import { id, now, one, parseJson, run, token } from "./db";
 import { logEvent } from "./events";
 import { guessBrandName, templatePrompts } from "./suggest";
 import type { Source } from "./types";
@@ -151,23 +152,20 @@ function bdAnswers(records: BrightDataRecord[], prompts: string[], brand: Brand,
   });
 }
 
-async function viaBrightData(base: CheckerResult, prompts: string[], brand: Brand, deadline: number, f?: FetchLike): Promise<CheckerResult> {
+const WAITING = "Esperando la respuesta de ChatGPT…";
+
+/**
+ * Manda las preguntas a Bright Data en modo asíncrono y devuelve el chequeo pendiente.
+ * El pedido HTTP vuelve enseguida: la página del resultado lo completa (resumeChecker).
+ */
+async function viaBrightData(base: CheckerResult, prompts: string[], f?: FetchLike): Promise<CheckerResult> {
   const cfg = brightDataConfig(CHECKER_COLLECTOR);
   if ("missing" in cfg) throw new Error(cfg.missing);
-  const started = Date.now();
   await logEvent("checker_brightdata", { n: prompts.length });
   const fetchImpl = f ?? (fetch as unknown as FetchLike);
   const inputs = prompts.map((p, i) => buildInput(cfg, p, base.country, i + 1));
-  const first = await scrapeSync(fetchImpl, cfg, inputs, { timeoutMs: Math.max(5_000, deadline - Date.now()) });
-  if ("records" in first) return summarize(base, bdAnswers(first.records, prompts, brand, started, base.country));
-  try {
-    const records = await waitForSnapshot(fetchImpl, cfg, first.snapshotId, { pollMs: 5_000, deadline, firstWaitMs: first.retryAfterMs ?? undefined });
-    return summarize(base, bdAnswers(records, prompts, brand, started, base.country));
-  } catch (e) {
-    if (!(e instanceof BrightDataError) || e.code !== "timeout") throw e;
-    // Sigue en Bright Data: la página del resultado lo completa cuando esté listo.
-    return { ...base, questions: prompts.map((t) => noAnswer(t, "Esperando la respuesta de ChatGPT…")), pending: { snapshotId: first.snapshotId, since: now() } };
-  }
+  const snapshotId = await triggerSnapshot(fetchImpl, cfg, inputs, { timeoutMs: 20_000 });
+  return { ...base, questions: prompts.map((t) => noAnswer(t, WAITING)), pending: { snapshotId, since: now() } };
 }
 
 /** Si el chequeo quedó esperando a Bright Data, intenta completarlo. Devuelve el resultado actualizado o null si sigue igual. */
@@ -187,14 +185,44 @@ export async function resumeChecker(r: CheckerResult, f?: FetchLike): Promise<Ch
     }
     if (status === "failed" || status === "canceled") return giveUp("No se pudo completar la consulta a ChatGPT.");
   } catch (e) {
-    if (e instanceof BrightDataError && !e.transient) return giveUp(e.message);
+    if (e instanceof BrightDataError && !e.transient) return giveUp(errorFrom(e).message);
   }
   if (Date.now() - Date.parse(r.pending.since) > 30 * 60_000) return giveUp("ChatGPT tardó demasiado en responder.");
   return null;
 }
 
-export async function runChecker(input: CheckerInput, opts: { deadline?: number; fetch?: FetchLike } = {}): Promise<CheckerResult> {
-  const startedAt = Date.now();
+export type CheckerAudit = { id: string; kind: string; workspaceId: string | null; result: CheckerResult };
+
+/**
+ * Lo que muestra /auditoria/[token]: busca el chequeo (también los pendientes) y, si está esperando
+ * a Bright Data, intenta completarlo y guarda el resultado en la misma fila.
+ */
+export async function loadCheckerAudit(shareToken: string, opts: { fetch?: FetchLike; retries?: number } = {}): Promise<CheckerAudit | null> {
+  type Row = { id: string; kind: string; result: string; workspace_id: string | null };
+  let row: Row | null = null;
+  // Si la base tiene réplicas de lectura, la fila puede tardar un instante en aparecer.
+  for (let i = 0; i <= (opts.retries ?? 4); i++) {
+    row = await one<Row>("SELECT id, kind, result, workspace_id FROM audits WHERE share_token = ? AND kind IN ('checker','prospect')", [shareToken]);
+    if (row || i === (opts.retries ?? 4)) break;
+    await new Promise((r) => setTimeout(r, 600));
+  }
+  if (!row) return null;
+  let result = parseJson<CheckerResult | null>(row.result, null);
+  if (!result) return null;
+  if (result.pending) {
+    const done = await resumeChecker(result, opts.fetch).catch((e) => {
+      console.error("checker resume", e);
+      return null;
+    });
+    if (done) {
+      await run("UPDATE audits SET result = ? WHERE id = ?", [JSON.stringify(done), row.id]);
+      result = done;
+    }
+  }
+  return { id: row.id, kind: row.kind, workspaceId: row.workspace_id, result };
+}
+
+export async function runChecker(input: CheckerInput, opts: { fetch?: FetchLike } = {}): Promise<CheckerResult> {
   const domain = cleanDomain(input.domain);
   const audit = await auditSite(domain);
   const brandName = input.brandName?.trim() || guessBrandName(audit.home.title, audit.home.siteName, domain);
@@ -224,13 +252,15 @@ export async function runChecker(input: CheckerInput, opts: { deadline?: number;
     createdAt: now(),
   };
 
+  let bdError: string | null = null;
   // 1) Bright Data (interfaz web de ChatGPT), si está configurado y queda cupo del día.
   if (!("missing" in brightDataConfig(CHECKER_COLLECTOR)) && (await brightDataRoom(unbranded.length))) {
     const bdBase = { ...base, engine: "chatgpt" as const, engineLabel: "ChatGPT", method: "brightdata" as const };
     try {
-      return await viaBrightData(bdBase, unbranded.map((p) => p.text), brand, opts.deadline ?? startedAt + 85_000, opts.fetch);
+      return await viaBrightData(bdBase, unbranded.map((p) => p.text), opts.fetch);
     } catch (e) {
       console.error("checker brightdata", e);
+      bdError = errorFrom(e).message;
       // Si falla, sigue con la API oficial (si hay) o solo con la auditoría.
     }
   }
@@ -240,7 +270,7 @@ export async function runChecker(input: CheckerInput, opts: { deadline?: number;
   const collector = engine ? apiCollector(`${engine}_api`, engine) : null;
   const questions = await Promise.all(
     unbranded.map(async (p) => {
-      if (!collector) return noAnswer(p.text, "Sin motor configurado en este servidor");
+      if (!collector) return noAnswer(p.text, bdError ? `No pudimos consultar a ChatGPT en este momento: ${bdError}` : "Sin motor configurado en este servidor");
       const res = await collector.collect(
         { prompt: p.text, engine: engine!, requestedCountry: input.country, language: "es", runId: "checker", jobId: "checker" },
         { saveEvidence: async () => "", signal: new AbortController().signal, log: () => undefined },

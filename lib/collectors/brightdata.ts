@@ -23,7 +23,8 @@ import type { Citation, CollectError, CollectInput, CollectResult, Collector } f
 export type BrightDataCollectorId = "brightdata_chatgpt" | "brightdata_gemini" | "brightdata_perplexity";
 export type BrightDataProvider = "chatgpt" | "gemini" | "perplexity";
 
-const API = "https://api.brightdata.com";
+// Se puede apuntar a un servidor simulado para pruebas de punta a punta (nunca en producción).
+const API = process.env.BRIGHTDATA_API_BASE?.trim() || "https://api.brightdata.com";
 
 /** Ids de los scrapers en el panel de Bright Data («ChatGPT / Gemini / Perplexity search by prompt»). */
 export const CHATGPT_DATASET_ID = "gd_m7aof0k82r803d5bjm";
@@ -429,7 +430,10 @@ export function failureResult(id: BrightDataCollectorId, error: CollectError, st
 export function errorFrom(e: unknown): CollectError {
   if (e instanceof BrightDataError) {
     if (e.code) return { code: e.code, message: e.message, transient: e.transient };
-    if (e.status === 401 || e.status === 403) return { code: "sin_credenciales", message: e.message, transient: false };
+    if (e.status === 401 || e.status === 403) return { code: "sin_credenciales", message: "El servicio de captura rechazó la key. Revisá BRIGHTDATA_API_KEY.", transient: false };
+    // Cuenta suspendida o sin saldo: «400: Customer is not active».
+    if (/not active|inactive|suspend|balance|insufficient/i.test(e.message))
+      return { code: "sin_credenciales", message: "La cuenta del servicio de captura no está activa (sin saldo o suspendida). Revisá la cuenta y volvé a probar.", transient: false };
     if (e.status === 429) return { code: "limite_de_uso", message: e.message, transient: true };
     return { code: e.status === 0 ? "red" : "api_error", message: e.message, transient: e.transient };
   }

@@ -3,11 +3,10 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { cleanDomain } from "@/lib/analyze";
 import { runChecker, saveAudit } from "@/lib/checker";
-import { isEphemeralDb, one } from "@/lib/db";
+import { dbFingerprint, isEphemeralDb, one } from "@/lib/db";
 import { logEvent } from "@/lib/events";
 
-// Bright Data puede tardar hasta ~1 minuto; si tarda más, el resultado se completa al abrirlo.
-export const maxDuration = 120;
+export const maxDuration = 60;
 
 const Body = z.object({
   domain: z.string().min(3).max(200),
@@ -41,7 +40,16 @@ export async function POST(req: Request) {
   try {
     const result = await runChecker({ domain, category: input.category, country: input.country, city: input.city });
     const saved = await saveAudit("checker", result, { domain });
-    console.log("checker guardado", { token: saved.shareToken, method: result.method ?? null, pending: Boolean(result.pending), ephemeralDb: isEphemeralDb() });
+    // Verificación: la misma fila tiene que poder leerse antes de mandar al usuario a verla.
+    const back = await one<{ id: string }>("SELECT id FROM audits WHERE share_token = ?", [saved.shareToken]);
+    console.log("checker guardado", {
+      token: saved.shareToken,
+      method: result.method ?? null,
+      pending: Boolean(result.pending),
+      verificado: Boolean(back),
+      ephemeralDb: isEphemeralDb(),
+      db: dbFingerprint(),
+    });
     await logEvent("checker_done", { domain, mentioned: result.mentioned, total: result.total, simulated: result.simulated }, input.visitor);
     return NextResponse.json({ token: saved.shareToken });
   } catch (e) {
