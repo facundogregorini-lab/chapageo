@@ -1,10 +1,14 @@
 import type { CheckerResult } from "@/lib/checker";
-import { countryName } from "@/lib/config";
+import { ENGINES, countryName } from "@/lib/config";
 import { Markdown } from "./Markdown";
 import { SiteAuditView } from "./SiteAuditView";
 import { Badge, Highlighted, fmtDate } from "./ui";
 
 export function CheckerReport({ r }: { r: CheckerResult }) {
+  const multi = (r.engines?.length ?? 0) > 1;
+  // Motores que todavía no respondieron (los chequeos viejos guardaban un solo snapshotId).
+  const waiting = new Set(r.pending ? (r.pending.snapshots?.map((s) => s.engine) ?? [r.engine ?? "chatgpt"]) : []);
+  const waitingLabel = [...waiting].map((e) => ENGINES[e as keyof typeof ENGINES]?.label ?? e).join(", ");
   const verdict =
     r.total === 0
       ? { tone: "bad" as const, text: "No pudimos obtener respuestas" }
@@ -23,14 +27,14 @@ export function CheckerReport({ r }: { r: CheckerResult }) {
         <div className="flex items-center gap-3 rounded-xl border border-celeste-100 bg-paper px-4 py-3 text-sm">
           <div className="h-5 w-5 shrink-0 animate-spin rounded-full border-2 border-celeste-100 border-t-celeste" />
           <span>
-            <strong>ChatGPT está respondiendo tus preguntas.</strong> La revisión técnica ya está lista; las respuestas aparecen acá solas en uno o dos minutos.
+            <strong>{waiting.size > 1 ? `${waitingLabel} están respondiendo tus preguntas.` : `${waitingLabel} está respondiendo tus preguntas.`}</strong> La revisión técnica ya está lista; las respuestas aparecen acá solas en uno o dos minutos.
             Podés dejar esta página abierta o volver más tarde con el mismo link.
           </span>
         </div>
       ) : r.method === "brightdata" ? (
         <div className="rounded-xl border border-line bg-paper px-4 py-3 text-sm text-mute">
-          Respuestas de la <strong>interfaz web de ChatGPT</strong>, como las ve una persona. Es una muestra de 5 preguntas: el
-          análisis completo suma más preguntas, Gemini y Perplexity, y repeticiones.
+          Respuestas de la <strong>interfaz web de {r.engineLabel}</strong>, como las ve una persona. Es una muestra de 5 preguntas
+          {multi ? " por motor" : ""}: el análisis completo suma más preguntas, más motores y repeticiones.
         </div>
       ) : !r.engine ? (
         <div className="rounded-xl border border-line bg-paper px-4 py-3 text-sm text-mute">
@@ -60,7 +64,17 @@ export function CheckerReport({ r }: { r: CheckerResult }) {
             {r.mentioned}
             <span className="text-xl text-mute"> de {r.total}</span>
           </div>
-          <p className="mt-2 text-xs text-mute">preguntas en {r.engineLabel}{r.city ? `, ${r.city}` : ""}, {countryName(r.country)}</p>
+          <p className="mt-2 text-xs text-mute">{multi ? "respuestas" : "preguntas"} en {r.engineLabel}{r.city ? `, ${r.city}` : ""}, {countryName(r.country)}</p>
+          {r.byEngine ? (
+            <ul className="mt-3 space-y-1 text-xs">
+              {r.byEngine.map((e) => (
+                <li key={e.engine} className="flex justify-between">
+                  <span>{e.label}</span>
+                  <span className="text-mute">{waiting.has(e.engine) ? "procesando…" : `${e.mentioned} de ${e.total}`}</span>
+                </li>
+              ))}
+            </ul>
+          ) : null}
         </div>
         <div className="card p-6">
           <div className="text-xs font-semibold text-mute">Citó tu sitio</div>
@@ -111,8 +125,11 @@ export function CheckerReport({ r }: { r: CheckerResult }) {
           {r.questions.map((q, i) => (
             <details key={i} className="card group p-5" open={i === 0}>
               <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-2">
-                <span className="font-semibold">«{q.text}»</span>
-                {r.pending ? (
+                <span className="font-semibold">
+                  {multi && q.engine ? <span className="mr-2 rounded-full border border-line px-2 py-0.5 text-xs font-normal text-mute">{ENGINES[q.engine].label}</span> : null}
+                  «{q.text}»
+                </span>
+                {r.pending && waiting.has(q.engine ?? r.engine ?? "chatgpt") ? (
                   <Badge tone="neutral">procesando…</Badge>
                 ) : q.error ? (
                   <Badge tone="neutral">error técnico</Badge>
@@ -150,7 +167,7 @@ export function CheckerReport({ r }: { r: CheckerResult }) {
         <SiteAuditView audit={r.audit} />
       </div>
       <p className="text-xs text-mute">
-        Análisis del {fmtDate(r.createdAt, true)}. Las respuestas de la IA varían entre consultas: este chequeo usa 1 motor y 1 repetición. El diagnóstico
+        Análisis del {fmtDate(r.createdAt, true)}. Las respuestas de la IA varían entre consultas: este chequeo usa {r.engines?.length ?? 1} {(r.engines?.length ?? 1) === 1 ? "motor" : "motores"} y 1 repetición. El diagnóstico
         completo usa 20 preguntas, 2 motores y 3 repeticiones.
       </p>
     </div>

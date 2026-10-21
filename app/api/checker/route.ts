@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { cleanDomain } from "@/lib/analyze";
-import { runChecker, saveAudit } from "@/lib/checker";
+import { CHECKER_ENGINES, runChecker, type CheckerEngine, saveAudit } from "@/lib/checker";
 import { dbFingerprint, isEphemeralDb, one } from "@/lib/db";
 import { logEvent } from "@/lib/events";
 
@@ -14,6 +14,7 @@ const Body = z.object({
   country: z.string().length(2).default("AR"),
   city: z.string().max(80).optional().nullable(),
   visitor: z.string().max(64).optional(),
+  engines: z.array(z.enum(CHECKER_ENGINES as [string, ...string[]])).min(1).max(3).optional(),
 });
 
 const DAILY_LIMIT = Number(process.env.CHECKER_DAILY_LIMIT ?? 5);
@@ -38,12 +39,13 @@ export async function POST(req: Request) {
   await logEvent("checker_start", { ip: ipHash, domain, category: input.category }, input.visitor);
 
   try {
-    const result = await runChecker({ domain, category: input.category, country: input.country, city: input.city });
+    const result = await runChecker({ domain, category: input.category, country: input.country, city: input.city, engines: input.engines as CheckerEngine[] | undefined });
     const saved = await saveAudit("checker", result, { domain });
     // Verificación: la misma fila tiene que poder leerse antes de mandar al usuario a verla.
     const back = await one<{ id: string }>("SELECT id FROM audits WHERE share_token = ?", [saved.shareToken]);
     console.log("checker guardado", {
       token: saved.shareToken,
+      engines: result.engines ?? null,
       method: result.method ?? null,
       pending: Boolean(result.pending),
       verificado: Boolean(back),
