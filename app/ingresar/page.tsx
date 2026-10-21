@@ -1,8 +1,11 @@
+import { redirect } from "next/navigation";
 import { AuthShell } from "@/components/AuthShell";
 import { GoogleButton, LoginForm } from "@/components/AuthForms";
-import { googleEnabled } from "@/lib/google-auth";
+import { getCtx, isDemoCtx } from "@/lib/auth";
+import { googleEnabled, safeNext } from "@/lib/google-auth";
 
 export const metadata = { title: "Ingresar" };
+export const dynamic = "force-dynamic";
 
 const ERRORS: Record<string, string> = {
   google: "No pudimos completar el ingreso con Google. Probá de nuevo.",
@@ -13,6 +16,9 @@ const ERRORS: Record<string, string> = {
 
 export default async function Page({ searchParams }: { searchParams: Promise<{ next?: string; error?: string }> }) {
   const { next, error } = await searchParams;
+  // Con una sesión real abierta no tiene sentido volver a ingresar (la de la demo sí se puede cambiar).
+  const ctx = await getCtx();
+  if (ctx && !isDemoCtx(ctx)) redirect(safeNext(next));
   const message = error ? ERRORS[error] : undefined;
   return (
     <AuthShell title="Ingresá a ChapaGEO" subtitle="Tu panel de visibilidad en IA.">

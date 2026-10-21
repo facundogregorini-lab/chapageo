@@ -58,11 +58,12 @@ export function CheckerForm({ initialDomain = "", initialCategory = "", endpoint
           ...extra,
         }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Error inesperado");
+      // Si el servidor se cae o corta por tiempo, la respuesta no es JSON: mostramos un mensaje claro.
+      const data = (await res.json().catch(() => ({}))) as { token?: string; error?: string };
+      if (!res.ok || !data.token) throw new Error(data.error ?? "No pudimos completar el análisis. Probá de nuevo en un rato.");
       router.push(`${resultBase}/${data.token}`);
     } catch (err) {
-      setError((err as Error).message);
+      setError(err instanceof TypeError ? "Se cortó la conexión. Revisá internet y probá de nuevo." : (err as Error).message);
       setLoading(false);
     }
   }

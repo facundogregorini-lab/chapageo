@@ -31,7 +31,7 @@ export function LoginForm({ next }: { next?: string }) {
       <input type="hidden" name="next" value={next ?? ""} />
       <div>
         <label className="label" htmlFor="email">Email</label>
-        <input id="email" name="email" type="email" required autoComplete="email" className="input" />
+        <input id="email" name="email" type="email" required autoComplete="email" className="input" defaultValue={state?.values?.email} />
       </div>
       <div>
         <label className="label" htmlFor="password">Contraseña</label>
@@ -40,7 +40,7 @@ export function LoginForm({ next }: { next?: string }) {
       {state?.error ? <p className="text-sm text-bad">{state.error}</p> : null}
       <button className="btn-primary w-full" disabled={pending}>{pending ? "Ingresando…" : "Ingresar"}</button>
       <p className="text-center text-sm text-mute">
-        ¿No tenés cuenta? <Link href="/registro" className="font-semibold text-ink underline">Creala gratis</Link>
+        ¿No tenés cuenta? <Link href={next?.startsWith("/app/plan/checkout") ? `/registro?plan=${new URLSearchParams(next.split("?")[1] ?? "").get("plan") ?? ""}` : "/registro"} className="font-semibold text-ink underline">Creala gratis</Link>
       </p>
     </form>
   );
@@ -55,16 +55,16 @@ export function RegisterForm({ plan, planName }: { plan?: string; planName?: str
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
           <label className="label" htmlFor="name">Tu nombre</label>
-          <input id="name" name="name" className="input" autoComplete="name" />
+          <input id="name" name="name" className="input" autoComplete="name" defaultValue={state?.values?.name} />
         </div>
         <div>
           <label className="label" htmlFor="company">Empresa o agencia</label>
-          <input id="company" name="company" className="input" autoComplete="organization" />
+          <input id="company" name="company" className="input" autoComplete="organization" defaultValue={state?.values?.company} />
         </div>
       </div>
       <div>
         <label className="label" htmlFor="email">Email de trabajo</label>
-        <input id="email" name="email" type="email" required className="input" autoComplete="email" />
+        <input id="email" name="email" type="email" required className="input" autoComplete="email" defaultValue={state?.values?.email} />
       </div>
       <div>
         <label className="label" htmlFor="password">Contraseña</label>

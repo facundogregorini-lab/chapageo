@@ -27,9 +27,11 @@ export default async function Page({ params, searchParams }: { params: Promise<{
           <div className="flex flex-wrap gap-2">
             <PrintButton />
             <a href={`/api/runs/${report.m.run!.id}/export`} className="btn-ghost btn-sm">Descargar CSV</a>
-            <form action={rotateShareToken.bind(null, id)}>
-              <button className="btn-ghost btn-sm">Revocar link y generar otro</button>
-            </form>
+            {Number(ctx.workspace.is_demo ?? 0) ? null : (
+              <form action={rotateShareToken.bind(null, id)}>
+                <button className="btn-ghost btn-sm">Revocar link y generar otro</button>
+              </form>
+            )}
           </div>
         </div>
         <p className="text-sm text-mute">El link privado muestra este informe sin acceso al panel ni a las capturas. Para PDF usá «Imprimir» y «Guardar como PDF».</p>

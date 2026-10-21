@@ -8,16 +8,25 @@ import { id, now, one, run } from "@/lib/db";
 import { logEvent } from "@/lib/events";
 import { requestOrigin } from "@/lib/origin";
 
-export type FormState = { error?: string; ok?: boolean } | undefined;
+/** values: lo que escribió la persona, para no vaciar el formulario cuando hay un error. */
+export type FormState = { error?: string; ok?: boolean; values?: Record<string, string> } | undefined;
 
 const str = (f: FormData, k: string) => String(f.get(k) ?? "").trim();
 
 export async function loginAction(_: FormState, form: FormData): Promise<FormState> {
   const email = str(form, "email").toLowerCase();
   const password = str(form, "password");
+  const values = { email };
+  // Freno a los intentos de adivinar contraseñas: 10 fallidos por email en 15 minutos.
+  const since = new Date(Date.now() - 15 * 60_000).toISOString();
+  const fails = await one<{ n: number }>("SELECT COUNT(*) AS n FROM events WHERE name = 'login_fail' AND json_extract(props, '$.email') = ? AND created_at > ?", [email, since]);
+  if (Number(fails?.n ?? 0) >= 10) return { error: "Demasiados intentos. Esperá 15 minutos o ingresá con Google.", values };
   const user = await one<{ id: string; password_hash: string }>("SELECT id, password_hash FROM users WHERE email = ?", [email]);
-  if (user && !user.password_hash) return { error: "Esta cuenta se creó con Google. Ingresá con «Continuar con Google»." };
-  if (!user || !(await checkPassword(password, user.password_hash))) return { error: "Email o contraseña incorrectos." };
+  if (user && !user.password_hash) return { error: "Esta cuenta se creó con Google. Ingresá con «Continuar con Google».", values };
+  if (!user || !(await checkPassword(password, user.password_hash))) {
+    await logEvent("login_fail", { email });
+    return { error: "Email o contraseña incorrectos.", values };
+  }
   await startSession(user.id);
   const next = str(form, "next");
   redirect(next.startsWith("/app") && !next.startsWith("//") ? next : "/app");
@@ -28,9 +37,10 @@ export async function registerAction(_: FormState, form: FormData): Promise<Form
   const password = str(form, "password");
   const name = str(form, "name");
   const company = str(form, "company") || "Mi equipo";
-  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return { error: "Revisá el email." };
-  if (password.length < 8) return { error: "La contraseña necesita al menos 8 caracteres." };
-  if (await one("SELECT id FROM users WHERE email = ?", [email])) return { error: "Ya existe una cuenta con ese email. Ingresá desde «Ingresar» (con tu contraseña o con Google)." };
+  const values = { email, name, company: str(form, "company") };
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return { error: "Revisá el email.", values };
+  if (password.length < 8) return { error: "La contraseña necesita al menos 8 caracteres.", values };
+  if (await one("SELECT id FROM users WHERE email = ?", [email])) return { error: "Ya existe una cuenta con ese email. Ingresá desde «Ingresar» (con tu contraseña o con Google).", values };
   const wsId = id("ws_");
   const userId = id("usr_");
   const ts = now();

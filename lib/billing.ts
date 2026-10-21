@@ -111,6 +111,10 @@ export async function startCheckout(ctx: Ctx, planId: string, origin?: string): 
   if (!amount) throw new BillingError("Ese plan no tiene precio en pesos configurado.");
   const subs = await listSubscriptions(ctx.workspace.id);
   if (subs.some((s) => s.status === "authorized" && s.plan === planId)) throw new BillingError(`Ya tenés el plan ${plan.name} activo.`);
+  // Volver a tocar «Suscribirme» retoma el checkout recién creado en vez de abrir otra suscripción pendiente.
+  const dayAgo = new Date(Date.now() - DAY).toISOString();
+  const open = subs.find((s) => s.status === "pending" && s.plan === planId && s.amount === amount && s.checkout_url && !s.provider_id && s.created_at >= dayAgo);
+  if (open?.checkout_url) return open.checkout_url;
 
   const subId = id("sub_");
   const ts = now();

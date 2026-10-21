@@ -24,6 +24,17 @@ export async function endSession() {
   (await cookies()).delete(SESSION_COOKIE);
 }
 
+/**
+ * Equipo de ChapaGEO (ve leads y el embudo, prueba conectores pagos). Solo los emails de ADMIN_EMAILS;
+ * sin la variable no hay administradores en producción (en local, todos, para poder probar). Nunca la demo.
+ */
+export function isAdminEmail(email: string, isDemo: boolean, env: NodeJS.ProcessEnv = process.env): boolean {
+  if (isDemo) return false;
+  const admins = (env.ADMIN_EMAILS ?? "").split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
+  if (!admins.length) return env.NODE_ENV !== "production";
+  return admins.includes(email.toLowerCase());
+}
+
 export type Ctx = { user: User; workspace: Workspace; plan: Plan; isAdmin: boolean };
 
 /** Plan vigente: el guardado en el workspace, salvo que su período pago haya vencido. */
@@ -43,9 +54,12 @@ export async function ctxForUser(userId: string): Promise<Ctx | null> {
   if (!user) return null;
   const workspace = await one<Workspace>("SELECT * FROM workspaces WHERE id = ?", [user.workspace_id]);
   if (!workspace) return null;
-  const admins = (process.env.ADMIN_EMAILS ?? "").split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
-  return { user, workspace, plan: effectivePlan(workspace), isAdmin: admins.length === 0 || admins.includes(user.email.toLowerCase()) };
+  return { user, workspace, plan: effectivePlan(workspace), isAdmin: isAdminEmail(user.email, Number(workspace.is_demo ?? 0) === 1) };
 }
+
+/** La demo es un espacio compartido por todos los visitantes: se mira y se corren análisis simulados, pero no se edita. */
+export const isDemoCtx = (ctx: Pick<Ctx, "workspace">) => Number(ctx.workspace.is_demo ?? 0) === 1;
+export const DEMO_READONLY = "La demo es compartida y de solo lectura. Creá tu cuenta gratis para cargar y editar tus propios clientes.";
 
 export async function requireCtx(): Promise<Ctx> {
   const ctx = await getCtx();

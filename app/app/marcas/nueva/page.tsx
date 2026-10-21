@@ -1,6 +1,7 @@
 import { BrandWizard } from "@/components/BrandWizard";
 import { workspaceBrands } from "@/lib/access";
-import { requireCtx } from "@/lib/auth";
+import { DemoReadOnly } from "@/components/ui";
+import { isDemoCtx, requireCtx } from "@/lib/auth";
 import { COUNTRIES } from "@/lib/config";
 import { LIMITS } from "@/lib/limits";
 import { helperAvailable } from "@/lib/llm";
@@ -9,6 +10,14 @@ export const metadata = { title: "Nuevo cliente" };
 
 export default async function Page() {
   const ctx = await requireCtx();
+  if (isDemoCtx(ctx)) {
+    return (
+      <div className="mx-auto max-w-xl space-y-4">
+        <h1 className="text-2xl font-bold tracking-tight">Nuevo cliente</h1>
+        <DemoReadOnly what="cargar clientes" />
+      </div>
+    );
+  }
   const brands = await workspaceBrands(ctx.workspace.id);
   if (brands.length >= LIMITS.maxClientsPerAgency) {
     return (

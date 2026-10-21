@@ -61,7 +61,7 @@
 .lx-nav-login { color: var(--lx-muted); transition: color 0.2s; }
 .lx-nav-login:hover { color: var(--lx-fg); }
 @media (max-width: 1100px) { .lx-pill { display: none; } }
-@media (max-width: 640px) { .lx-nav-login { display: none; } }
+@media (max-width: 640px) { .lx-nav-login { font-size: 14px; } .lx-nav-right { gap: 12px; } }
 
 /* Botones */
 .lx-btn { white-space: nowrap; transition: transform 0.25s var(--lx-ease), box-shadow 0.3s, background 0.3s; border-radius: 999px; font-weight: 600; display: inline-block; cursor: pointer; border: 0; font-family: inherit; }
