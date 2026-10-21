@@ -71,6 +71,10 @@ export function RegisterForm() {
       {state?.error ? <p className="text-sm text-bad">{state.error}</p> : null}
       <button className="btn-primary w-full" disabled={pending}>{pending ? "Creando…" : "Crear cuenta gratis"}</button>
       <p className="text-center text-xs text-mute">Plan de prueba: 1 marca, 10 preguntas y 2 motores. Sin tarjeta.</p>
+      <p className="text-center text-xs text-mute">
+        Al crear la cuenta aceptás los <Link href="/terminos" className="underline">términos</Link> y la{" "}
+        <Link href="/privacidad" className="underline">política de privacidad</Link>.
+      </p>
       <p className="text-center text-sm text-mute">
         ¿Ya tenés cuenta? <Link href="/ingresar" className="font-semibold text-ink underline">Ingresá</Link>
       </p>
