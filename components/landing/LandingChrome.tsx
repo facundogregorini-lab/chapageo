@@ -82,6 +82,7 @@ export function LandingFooter() {
                 <li><Link href="/contacto">Contacto</Link></li>
                 <li><Link href="/privacidad">Privacidad</Link></li>
                 <li><Link href="/terminos">Términos</Link></li>
+                <li><Link href="/arrepentimiento">Botón de arrepentimiento</Link></li>
               </ul>
             </div>
           </div>

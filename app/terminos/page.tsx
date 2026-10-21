@@ -60,8 +60,10 @@ export default function Page() {
       <h2>6. Planes y pagos</h2>
       <p>
         Los precios figuran en la página de <Link href="/precios">precios</Link>. Los pagos se procesan en plataformas de terceros. Salvo que se acuerde
-        otra cosa por escrito, los planes mensuales se pueden cancelar en cualquier momento y la cancelación rige desde el período siguiente. El
-        consumidor tiene derecho a revocar la contratación dentro de los 10 días corridos, según la Ley 24.240 de Defensa del Consumidor.
+        otra cosa por escrito, los planes mensuales se renuevan solos cada mes y se pueden cancelar en cualquier momento desde «Plan y pago»: no se
+        vuelve a cobrar y conservás el plan hasta el fin del período pagado. El consumidor tiene derecho a revocar la contratación dentro de los 10
+        días corridos desde que contrató, según la Ley 24.240 de Defensa del Consumidor, desde el{" "}
+        <Link href="/arrepentimiento">botón de arrepentimiento</Link>.
       </p>
 
       <h2>7. Propiedad de los datos</h2>

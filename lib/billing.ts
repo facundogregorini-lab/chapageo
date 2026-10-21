@@ -301,6 +301,17 @@ export async function canStartAnalysis(ctx: Ctx, opts: { prompts: number; collec
   return null;
 }
 
+/** Topes que la web muestra antes de iniciar un análisis (los mismos que valida canStartAnalysis). */
+export function analysisCaps(ctx: Ctx): { maxPrompts: number; maxEngines: number; maxReps: number; planName: string | null } {
+  if (Number(ctx.workspace.is_demo ?? 0)) return { maxPrompts: LIMITS.maxPrompts, maxEngines: 99, maxReps: LIMITS.maxRepetitions, planName: null };
+  return {
+    maxPrompts: Math.min(LIMITS.maxPrompts, ctx.plan.promptPool),
+    maxEngines: ctx.plan.maxEngines,
+    maxReps: Math.min(LIMITS.maxRepetitions, ctx.plan.repetitions),
+    planName: ctx.plan.name,
+  };
+}
+
 export function priceLabel(planId: PlanId): string | null {
   const v = planPriceArs(PLANS[planId]);
   return v ? `${formatArs(v)} / mes` : null;

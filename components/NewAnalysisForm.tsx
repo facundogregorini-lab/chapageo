@@ -19,8 +19,11 @@ export function NewAnalysisForm({
   approved,
   maxExecutions,
   maxReps,
+  maxEngines = 99,
+  planName = null,
   minPrompts,
   maxPrompts,
+  promptsHref,
   anyWorkerOnline,
   showWorker,
   idem,
@@ -30,8 +33,12 @@ export function NewAnalysisForm({
   approved: number;
   maxExecutions: number;
   maxReps: number;
+  /** Topes del plan (null = sin plan, la demo). */
+  maxEngines?: number;
+  planName?: string | null;
   minPrompts: number;
   maxPrompts: number;
+  promptsHref?: string;
   anyWorkerOnline: boolean;
   /** Si hay conectores de worker (captura propia o API). Sin worker, todo va por Bright Data. */
   showWorker: boolean;
@@ -39,7 +46,7 @@ export function NewAnalysisForm({
   idem: string;
 }) {
   const [state, action, pending] = useActionState<StartState, FormData>(startAnalysisAction.bind(null, brandId), undefined);
-  const [selected, setSelected] = useState<string[]>(() => options.filter((o) => o.selectable).slice(0, 2).map((o) => o.id));
+  const [selected, setSelected] = useState<string[]>(() => options.filter((o) => o.selectable).slice(0, Math.min(2, maxEngines)).map((o) => o.id));
   const [reps, setReps] = useState(1);
   const total = approved * selected.length * reps;
   const promptsOk = approved >= minPrompts && approved <= maxPrompts;
@@ -58,6 +65,7 @@ export function NewAnalysisForm({
         <div className="mt-3 grid gap-2 sm:grid-cols-2">
           {options.map((o) => {
             const on = selected.includes(o.id);
+            const capped = !on && selected.length >= maxEngines;
             return (
               <label
                 key={o.id}
@@ -67,7 +75,7 @@ export function NewAnalysisForm({
                   type="checkbox"
                   name="collectors"
                   value={o.id}
-                  disabled={!o.selectable}
+                  disabled={!o.selectable || capped}
                   checked={on}
                   onChange={() => setSelected(on ? selected.filter((x) => x !== o.id) : [...selected, o.id])}
                   className="mt-1"
@@ -84,6 +92,11 @@ export function NewAnalysisForm({
             );
           })}
         </div>
+        {planName && options.filter((o) => o.selectable).length > maxEngines ? (
+          <p className="mt-2 text-xs text-mute">
+            Tu plan {planName} incluye {maxEngines} {maxEngines === 1 ? "motor" : "motores"} por análisis. <a href="/app/plan" className="font-semibold underline">Ver planes</a>
+          </p>
+        ) : null}
       </div>
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
@@ -93,7 +106,10 @@ export function NewAnalysisForm({
               <option key={n} value={n}>{n}</option>
             ))}
           </select>
-          <p className="mt-1 text-xs text-mute">Repetir ayuda a ver la variación de las respuestas.</p>
+          <p className="mt-1 text-xs text-mute">
+            Repetir ayuda a ver la variación de las respuestas.
+            {planName && maxReps === 1 ? <> Tu plan {planName} incluye 1 repetición; <a href="/app/plan" className="underline">con otro plan</a> llegás a 3.</> : null}
+          </p>
         </div>
         <div className="rounded-xl bg-paper p-4">
           <div className="text-xs font-semibold text-mute">Total de ejecuciones</div>
@@ -102,7 +118,12 @@ export function NewAnalysisForm({
           {tooMany ? <div className="mt-1 text-xs text-bad">Supera el máximo de {maxExecutions} por análisis.</div> : null}
         </div>
       </div>
-      {!promptsOk ? <p className="rounded-xl bg-sol-50 px-3 py-2 text-sm text-[#6b4700]">Necesitás entre {minPrompts} y {maxPrompts} preguntas aprobadas (hay {approved}).</p> : null}
+      {!promptsOk ? (
+        <p className="rounded-xl bg-sol-50 px-3 py-2 text-sm text-[#6b4700]">
+          Necesitás entre {minPrompts} y {maxPrompts} preguntas aprobadas{planName && approved > maxPrompts ? ` (es el tope del plan ${planName})` : ""}; hay {approved}.{" "}
+          {promptsHref ? <a href={promptsHref} className="font-semibold underline">{approved > maxPrompts ? "Quitá la aprobación a algunas" : "Aprobá más preguntas"}</a> : null}
+        </p>
+      ) : null}
       {showWorker && !anyWorkerOnline && selected.some((id) => !id.startsWith("brightdata_")) ? (
         <p className="rounded-xl bg-paper px-3 py-2 text-xs text-mute">
           El worker no está enviando señal en este momento. El análisis queda en cola y avanza cuando el worker vuelva; podés cerrar la pestaña.

@@ -2,6 +2,7 @@ import { BrandWizard } from "@/components/BrandWizard";
 import { workspaceBrands } from "@/lib/access";
 import { DemoReadOnly } from "@/components/ui";
 import { isDemoCtx, requireCtx } from "@/lib/auth";
+import { analysisCaps } from "@/lib/billing";
 import { COUNTRIES } from "@/lib/config";
 import { LIMITS } from "@/lib/limits";
 import { helperAvailable } from "@/lib/llm";
@@ -35,7 +36,7 @@ export default async function Page() {
         countries={COUNTRIES.map((c) => ({ code: c.code, name: c.name }))}
         helper={helperAvailable()}
         minPrompts={LIMITS.minPrompts}
-        maxPrompts={LIMITS.maxPrompts}
+        maxPrompts={analysisCaps(ctx).maxPrompts}
         maxCompetitors={LIMITS.maxCompetitors}
       />
     </div>
