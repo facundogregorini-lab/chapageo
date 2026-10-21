@@ -4,45 +4,22 @@ import { LeadForm } from "@/components/LeadForm";
 import { SiteFooter, SiteHeader } from "@/components/SiteChrome";
 import { TrackView } from "@/components/Track";
 import { AutoRefresh } from "@/components/AutoRefresh";
-import { resumeChecker, type CheckerResult } from "@/lib/checker";
+import { loadCheckerAudit } from "@/lib/checker";
 import { salesWhatsapp } from "@/lib/config";
-import { isEphemeralDb, one, parseJson, run } from "@/lib/db";
+import { dbFingerprint, isEphemeralDb, one } from "@/lib/db";
 import type { Workspace } from "@/lib/types";
 
 export const metadata = { title: "Resultado del análisis", robots: { index: false } };
 
-type AuditRow = { id: string; kind: string; result: string; workspace_id: string | null };
-
-/**
- * El checker redirige acá apenas guarda. Si la base tiene réplicas de lectura, la fila puede tardar
- * un instante en aparecer: reintentamos unos segundos antes de dar 404.
- */
-async function findAudit(token: string): Promise<AuditRow | null> {
-  for (let i = 0; i < 5; i++) {
-    const row = await one<AuditRow>("SELECT id, kind, result, workspace_id FROM audits WHERE share_token = ? AND kind IN ('checker','prospect')", [token]);
-    if (row) return row;
-    await new Promise((r) => setTimeout(r, 600));
-  }
-  return null;
-}
-
 export default async function Page({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
-  const row = await findAudit(token);
-  if (!row) {
-    console.error("auditoria no encontrada", { token, ephemeralDb: isEphemeralDb() });
+  const audit = await loadCheckerAudit(token);
+  if (!audit) {
+    console.error("auditoria no encontrada", { token, ephemeralDb: isEphemeralDb(), db: dbFingerprint() });
     notFound();
   }
-  let r = parseJson<CheckerResult | null>(row.result, null);
-  if (!r) notFound();
-  if (r.pending) {
-    // Bright Data seguía respondiendo cuando se armó el chequeo: probamos completarlo.
-    const done = await resumeChecker(r).catch(() => null);
-    if (done) {
-      await run("UPDATE audits SET result = ? WHERE id = ?", [JSON.stringify(done), row.id]);
-      r = done;
-    }
-  }
+  const row = { id: audit.id, kind: audit.kind, workspace_id: audit.workspaceId };
+  const r = audit.result;
   const refresh = r.pending ? <AutoRefresh seconds={8} /> : null;
   const ws = row.kind === "prospect" && row.workspace_id ? await one<Workspace>("SELECT * FROM workspaces WHERE id = ?", [row.workspace_id]) : null;
 

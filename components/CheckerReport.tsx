@@ -23,7 +23,7 @@ export function CheckerReport({ r }: { r: CheckerResult }) {
         <div className="flex items-center gap-3 rounded-xl border border-celeste-100 bg-paper px-4 py-3 text-sm">
           <div className="h-5 w-5 shrink-0 animate-spin rounded-full border-2 border-celeste-100 border-t-celeste" />
           <span>
-            <strong>ChatGPT todavía está respondiendo.</strong> La revisión técnica ya está lista; las respuestas aparecen acá solas en uno o dos minutos.
+            <strong>ChatGPT está respondiendo tus preguntas.</strong> La revisión técnica ya está lista; las respuestas aparecen acá solas en uno o dos minutos.
             Podés dejar esta página abierta o volver más tarde con el mismo link.
           </span>
         </div>
@@ -112,7 +112,9 @@ export function CheckerReport({ r }: { r: CheckerResult }) {
             <details key={i} className="card group p-5" open={i === 0}>
               <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-2">
                 <span className="font-semibold">«{q.text}»</span>
-                {q.error ? (
+                {r.pending ? (
+                  <Badge tone="neutral">procesando…</Badge>
+                ) : q.error ? (
                   <Badge tone="neutral">error técnico</Badge>
                 ) : q.mentioned ? (
                   <Badge tone="ok">Te nombra{q.position ? ` · #${q.position}` : ""}</Badge>
