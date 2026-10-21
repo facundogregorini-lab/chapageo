@@ -103,7 +103,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ p
                 ))}
               </ul>
               {pid !== "prueba" && enabled && active?.plan !== pid ? (
-                <PlanCheckoutForm plan={pid} email={ctx.user.email} primary={hot} label={active ? `Cambiar a ${p.name}` : `Suscribirme a ${p.name}`} />
+                <PlanCheckoutForm plan={pid} primary={hot} label={active ? `Cambiar a ${p.name}` : `Suscribirme a ${p.name}`} />
               ) : null}
             </div>
           );

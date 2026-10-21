@@ -19,7 +19,7 @@ export async function checkoutAction(_: CheckoutState, form: FormData): Promise<
   const ctx = await requireCtx();
   let url: string;
   try {
-    url = await startCheckout(ctx, String(form.get("plan") ?? ""), String(form.get("payer_email") ?? ctx.user.email), await requestOrigin());
+    url = await startCheckout(ctx, String(form.get("plan") ?? ""), await requestOrigin());
   } catch (e) {
     if (e instanceof BillingError) return { error: e.message };
     console.error("checkout", e);

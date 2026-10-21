@@ -7,12 +7,14 @@ import { all, id, now, one, run } from "./db";
 import { logEvent } from "./events";
 import { LIMITS } from "./limits";
 import {
-  createPreapproval,
+  createPreapprovalPlan,
   getAuthorizedPayment,
   getPreapproval,
+  searchPreapprovalsByPlan,
   mpConfigured,
   updatePreapprovalStatus,
   type Preapproval,
+  type PreapprovalPlan,
 } from "./mercadopago";
 
 export type SubscriptionStatus = "creating" | "pending" | "authorized" | "paused" | "cancelled" | "failed";
@@ -24,6 +26,7 @@ export type Subscription = {
   plan: PlanId;
   provider: string;
   provider_id: string | null;
+  provider_plan_id?: string | null;
   status: SubscriptionStatus;
   payer_email: string | null;
   amount: number;
@@ -95,13 +98,14 @@ export function appBaseUrl(origin?: string): string {
   return (process.env.APP_URL || origin || "http://localhost:3000").replace(/\/$/, "");
 }
 
-/** Crea la suscripción en Mercado Pago y devuelve la URL del checkout. */
-export async function startCheckout(ctx: Ctx, planId: string, payerEmail: string, origin?: string): Promise<string> {
+/**
+ * Crea un plan de suscripción en Mercado Pago y devuelve su checkout. El pagador entra con su
+ * cuenta de Mercado Pago (no le pedimos el email); la suscripción que crea trae el id del plan.
+ */
+export async function startCheckout(ctx: Ctx, planId: string, origin?: string): Promise<string> {
   if (!isSubscriptionPlan(planId)) throw new BillingError("Ese plan no se contrata por suscripción.");
   if (Number(ctx.workspace.is_demo ?? 0)) throw new BillingError("El espacio de demostración no se puede suscribir. Creá tu cuenta.");
   if (!mpConfigured()) throw new BillingError("Los pagos todavía no están habilitados. Escribinos y te damos de alta a mano.");
-  const email = payerEmail.trim().toLowerCase();
-  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new BillingError("Revisá el email de tu cuenta de Mercado Pago.");
   const plan = PLANS[planId];
   const amount = planPriceArs(plan);
   if (!amount) throw new BillingError("Ese plan no tiene precio en pesos configurado.");
@@ -111,32 +115,28 @@ export async function startCheckout(ctx: Ctx, planId: string, payerEmail: string
   const subId = id("sub_");
   const ts = now();
   await run(
-    `INSERT INTO subscriptions (id, workspace_id, user_id, plan, provider, status, payer_email, amount, currency, created_at, updated_at)
-     VALUES (?, ?, ?, ?, 'mercadopago', 'creating', ?, ?, 'ARS', ?, ?)`,
-    [subId, ctx.workspace.id, ctx.user.id, planId, email, amount, ts, ts],
+    `INSERT INTO subscriptions (id, workspace_id, user_id, plan, provider, status, amount, currency, created_at, updated_at)
+     VALUES (?, ?, ?, ?, 'mercadopago', 'creating', ?, 'ARS', ?, ?)`,
+    [subId, ctx.workspace.id, ctx.user.id, planId, amount, ts, ts],
   );
-  let pre: Preapproval;
+  let mpPlan: PreapprovalPlan;
   try {
-    pre = await createPreapproval({
+    mpPlan = await createPreapprovalPlan({
       reason: `ChapaGEO · Plan ${plan.name}`,
-      externalReference: subId,
-      payerEmail: email,
       amount,
       currency: "ARS",
       backUrl: `${appBaseUrl(origin)}/app/plan?retorno=${subId}`,
     });
   } catch (e) {
     await run("UPDATE subscriptions SET status = 'failed', raw = ?, updated_at = ? WHERE id = ?", [JSON.stringify({ error: String(e) }), now(), subId]);
-    console.error("mp_create_preapproval", e);
-    throw new BillingError("Mercado Pago no pudo iniciar la suscripción. Revisá el email y probá de nuevo en unos minutos.");
+    console.error("mp_create_plan", e);
+    throw new BillingError("Mercado Pago no pudo iniciar la suscripción. Probá de nuevo en unos minutos.");
   }
-  // Con usuarios de prueba, Mercado Pago también usa init_point; sandbox_init_point queda de respaldo.
-  const url = pre.init_point || pre.sandbox_init_point;
-  await run("UPDATE subscriptions SET provider_id = ?, status = ?, checkout_url = ?, raw = ?, updated_at = ? WHERE id = ?", [
-    pre.id,
-    mapStatus(pre.status),
-    url ?? null,
-    JSON.stringify(pre),
+  const url = mpPlan.init_point ?? null;
+  await run("UPDATE subscriptions SET provider_plan_id = ?, status = 'pending', checkout_url = ?, raw = ?, updated_at = ? WHERE id = ?", [
+    mpPlan.id,
+    url,
+    JSON.stringify(mpPlan),
     now(),
     subId,
   ]);
@@ -149,6 +149,9 @@ export async function startCheckout(ctx: Ctx, planId: string, payerEmail: string
 export async function applyPreapproval(pre: Preapproval): Promise<Subscription | null> {
   const local =
     (await one<Subscription>("SELECT * FROM subscriptions WHERE provider = 'mercadopago' AND provider_id = ?", [pre.id])) ??
+    (pre.preapproval_plan_id
+      ? await one<Subscription>("SELECT * FROM subscriptions WHERE provider = 'mercadopago' AND provider_plan_id = ? AND provider_id IS NULL", [pre.preapproval_plan_id])
+      : null) ??
     (pre.external_reference ? await one<Subscription>("SELECT * FROM subscriptions WHERE id = ? AND provider = 'mercadopago'", [pre.external_reference]) : null);
   if (!local) return null;
   const status = mapStatus(pre.status);
@@ -194,13 +197,15 @@ export async function refreshWorkspaceSubscriptions(workspaceId: string): Promis
   const stale = new Date(Date.now() - 2 * DAY).toISOString();
   const recent = new Date(Date.now() - 7 * DAY).toISOString();
   const subs = await all<Subscription>(
-    `SELECT * FROM subscriptions WHERE workspace_id = ? AND provider_id IS NOT NULL
+    `SELECT * FROM subscriptions WHERE workspace_id = ? AND (provider_id IS NOT NULL OR provider_plan_id IS NOT NULL)
        AND ((status = 'pending' AND created_at >= ?) OR (status = 'authorized' AND updated_at < ?)) LIMIT 5`,
     [workspaceId, recent, stale],
   );
   for (const s of subs) {
     try {
-      await syncPreapproval(s.provider_id!);
+      if (s.provider_id) await syncPreapproval(s.provider_id);
+      // Alta por plan todavía sin suscripción conocida: la buscamos por el id del plan.
+      else for (const pre of await searchPreapprovalsByPlan(s.provider_plan_id!)) await applyPreapproval(pre);
     } catch (e) {
       console.error("mp_refresh", s.id, e);
     }

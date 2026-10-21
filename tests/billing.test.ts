@@ -14,6 +14,13 @@ let b: B, dbm: D, auth: A;
 
 // Mercado Pago simulado: guarda las suscripciones creadas y responde GET/PUT.
 const mp = new Map<string, Record<string, unknown>>();
+const plans = new Map<string, Record<string, unknown>>();
+/** El comprador entra al checkout del plan con su cuenta y Mercado Pago crea la suscripción. */
+function subscribe(planId: string, extra: Record<string, unknown> = {}) {
+  const pre = { id: `pre${mp.size + 1}`, status: "authorized", preapproval_plan_id: planId, payer_email: "comprador@mp.com", date_created: new Date().toISOString(), ...extra };
+  mp.set(pre.id, pre);
+  return pre.id;
+}
 const payments = new Map<string, { id: string; preapproval_id: string; status: string }>();
 let calls: { method: string; url: string; body: unknown }[] = [];
 
@@ -24,10 +31,13 @@ globalThis.fetch = (async (input: string | URL, init?: RequestInit) => {
   calls.push({ method, url, body });
   const json = (status: number, data: unknown) => new Response(JSON.stringify(data), { status, headers: { "content-type": "application/json" } });
   let m: RegExpMatchArray | null;
-  if (method === "POST" && url.endsWith("/preapproval")) {
-    const pre = { id: `pre${mp.size + 1}`, status: "pending", init_point: `https://mp.test/checkout/${mp.size + 1}`, date_created: new Date().toISOString(), ...body };
-    mp.set(pre.id, pre);
-    return json(201, pre);
+  if (method === "POST" && url.endsWith("/preapproval_plan")) {
+    const plan = { id: `plan${plans.size + 1}`, status: "active", init_point: `https://mp.test/checkout/plan${plans.size + 1}`, ...body };
+    plans.set(plan.id, plan);
+    return json(201, plan);
+  }
+  if ((m = url.match(/\/preapproval\/search\?preapproval_plan_id=(.+)$/))) {
+    return json(200, { results: [...mp.values()].filter((p) => p.preapproval_plan_id === decodeURIComponent(m![1])) });
   }
   if ((m = url.match(/\/preapproval\/([^/?]+)$/))) {
     const pre = mp.get(m[1]);
@@ -83,18 +93,18 @@ test("effectivePlan vuelve a prueba cuando vence el período", () => {
 
 test("alta completa: checkout, webhook autorizado, cobro, cambio de plan y baja", async () => {
   const { ws } = await setupAgency("Pagadora");
-  const url = await b.startCheckout(await ctxFor(ws), "marca", "Comprador@Test.com");
-  assert.equal(url, "https://mp.test/checkout/1");
+  const url = await b.startCheckout(await ctxFor(ws), "marca");
+  assert.equal(url, "https://mp.test/checkout/plan1");
   const post = calls.find((c) => c.method === "POST")!;
-  const sent = post.body as { payer_email: string; back_url: string; auto_recurring: { transaction_amount: number; currency_id: string }; external_reference: string };
-  assert.equal(sent.payer_email, "comprador@test.com");
+  const sent = post.body as { payer_email?: string; back_url: string; auto_recurring: { transaction_amount: number; currency_id: string } };
+  assert.equal(sent.payer_email, undefined); // no se pide el email: el pagador entra con su cuenta
   assert.equal(sent.auto_recurring.currency_id, "ARS");
   assert.equal(sent.auto_recurring.transaction_amount, 129000);
   assert.match(sent.back_url, /^https:\/\/chapageo\.test\/app\/plan\?retorno=sub_/);
   assert.equal((await wsPlan(ws)).plan, "prueba");
 
-  // El comprador autoriza en Mercado Pago y llega el webhook.
-  Object.assign(mp.get("pre1")!, { status: "authorized", summarized: { charged_quantity: 1, last_charged_date: new Date().toISOString() } });
+  // El comprador se suscribe en Mercado Pago y llega el webhook.
+  subscribe("plan1", { summarized: { charged_quantity: 1, last_charged_date: new Date().toISOString() } });
   assert.equal(await b.handleNotification("subscription_preapproval", "pre1"), "ok:authorized");
   let w = await wsPlan(ws);
   assert.equal(w.plan, "marca");
@@ -105,12 +115,13 @@ test("alta completa: checkout, webhook autorizado, cobro, cambio de plan y baja"
   assert.equal(await b.handleNotification("subscription_authorized_payment", "777"), "ok:pago_processed");
 
   // No deja suscribirse dos veces al mismo plan.
-  await assert.rejects(b.startCheckout(await ctxFor(ws), "marca", "comprador@test.com"), /Ya tenés el plan/);
+  await assert.rejects(b.startCheckout(await ctxFor(ws), "marca"), /Ya tenés el plan/);
 
   // Cambio a Agencia: al autorizarse, la anterior se cancela sola.
-  await b.startCheckout(await ctxFor(ws), "agencia", "comprador@test.com");
-  Object.assign(mp.get("pre2")!, { status: "authorized" });
-  await b.handleNotification("subscription_preapproval", "pre2");
+  await b.startCheckout(await ctxFor(ws), "agencia");
+  subscribe("plan2");
+  // Sin webhook: al abrir «Plan y pago» se busca la suscripción por el id del plan.
+  await b.refreshWorkspaceSubscriptions(ws);
   assert.equal(mp.get("pre1")!.status, "cancelled");
   assert.equal((await wsPlan(ws)).plan, "agencia");
 
@@ -127,10 +138,10 @@ test("alta completa: checkout, webhook autorizado, cobro, cambio de plan y baja"
 
 test("pausada sin cobros quita el acceso; suscripción ajena se ignora", async () => {
   const { ws } = await setupAgency("Pausada");
-  await b.startCheckout(await ctxFor(ws), "marca", "otro@test.com");
-  const preId = [...mp.keys()].at(-1)!;
-  Object.assign(mp.get(preId)!, { status: "authorized", date_created: "2020-01-01T00:00:00Z" });
-  await dbm.run("UPDATE subscriptions SET created_at = '2020-01-01T00:00:00Z' WHERE provider_id = ?", [preId]);
+  await b.startCheckout(await ctxFor(ws), "marca");
+  const planId = [...plans.keys()].at(-1)!;
+  const preId = subscribe(planId, { date_created: "2020-01-01T00:00:00Z" });
+  await dbm.run("UPDATE subscriptions SET created_at = '2020-01-01T00:00:00Z' WHERE provider_plan_id = ?", [planId]);
   await b.handleNotification("subscription_preapproval", preId);
   assert.equal((await wsPlan(ws)).plan, "prueba"); // autorizada hace mucho y nunca cobrada
   mp.set("ajena", { id: "ajena", status: "authorized", external_reference: "sub_de_otro" });

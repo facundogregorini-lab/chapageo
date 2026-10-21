@@ -1,5 +1,5 @@
-// Cliente mínimo de la API de suscripciones de Mercado Pago (Preapproval, sin plan asociado).
-// Docs: https://www.mercadopago.com.ar/developers/es/reference/subscriptions/_preapproval/post
+// Cliente mínimo de la API de suscripciones de Mercado Pago (planes y preapprovals).
+// Docs: https://www.mercadopago.com.ar/developers/es/reference/subscriptions/_preapproval_plan/post
 // Solo corre en el servidor: usa MP_ACCESS_TOKEN, que nunca llega al navegador.
 
 import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
@@ -12,6 +12,7 @@ export type Preapproval = {
   id: string;
   status: PreapprovalStatus | string;
   external_reference?: string | null;
+  preapproval_plan_id?: string | null;
   payer_email?: string | null;
   payer_id?: number | null;
   init_point?: string | null;
@@ -70,25 +71,32 @@ async function call<T>(method: "GET" | "POST" | "PUT", path: string, body?: unkn
   return json as T;
 }
 
-export type CreatePreapprovalInput = {
+export type CreatePlanInput = {
   reason: string;
-  externalReference: string;
-  payerEmail: string;
   amount: number;
   currency: string;
   backUrl: string;
 };
 
-/** Crea la suscripción en estado pendiente: el pagador la autoriza en el checkout de Mercado Pago (init_point). */
-export function createPreapproval(i: CreatePreapprovalInput): Promise<Preapproval> {
-  return call<Preapproval>("POST", "/preapproval", {
+export type PreapprovalPlan = { id: string; init_point?: string | null; status?: string };
+
+/**
+ * Plan de suscripción: su init_point es un checkout donde el pagador entra con su cuenta de
+ * Mercado Pago, sin que tengamos que pedirle el email. Creamos un plan por intento de alta para
+ * poder asociar la suscripción resultante (que trae preapproval_plan_id) con el workspace.
+ */
+export function createPreapprovalPlan(i: CreatePlanInput): Promise<PreapprovalPlan> {
+  return call<PreapprovalPlan>("POST", "/preapproval_plan", {
     reason: i.reason,
-    external_reference: i.externalReference,
-    payer_email: i.payerEmail,
     back_url: i.backUrl,
-    status: "pending",
     auto_recurring: { frequency: 1, frequency_type: "months", transaction_amount: i.amount, currency_id: i.currency },
   });
+}
+
+/** Suscripciones creadas desde un plan (para sincronizar aunque el webhook no haya llegado). */
+export async function searchPreapprovalsByPlan(planId: string): Promise<Preapproval[]> {
+  const r = await call<{ results?: Preapproval[] }>("GET", `/preapproval/search?preapproval_plan_id=${encodeURIComponent(planId)}`);
+  return r.results ?? [];
 }
 
 export function getPreapproval(id: string): Promise<Preapproval> {
