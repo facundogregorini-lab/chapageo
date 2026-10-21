@@ -35,7 +35,10 @@ export function effectivePlan(ws: Pick<Workspace, "plan" | "plan_expires_at">, a
 
 export async function getCtx(): Promise<Ctx | null> {
   const userId = await verifySession((await cookies()).get(SESSION_COOKIE)?.value);
-  if (!userId) return null;
+  return userId ? ctxForUser(userId) : null;
+}
+
+export async function ctxForUser(userId: string): Promise<Ctx | null> {
   const user = await one<User>("SELECT id, email, name, workspace_id FROM users WHERE id = ?", [userId]);
   if (!user) return null;
   const workspace = await one<Workspace>("SELECT * FROM workspaces WHERE id = ?", [user.workspace_id]);

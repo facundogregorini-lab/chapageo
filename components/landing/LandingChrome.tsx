@@ -40,9 +40,9 @@ export function LandingNav() {
         <Link href="/ingresar" className="lx-nav-login">
           Ingresar
         </Link>
-        <Link href="/demo" className="lx-btn lx-btn-primary lx-btn-sm">
+        <a href="/demo" className="lx-btn lx-btn-primary lx-btn-sm">
           Ver la demo
-        </Link>
+        </a>
       </div>
     </header>
   );
@@ -63,7 +63,7 @@ export function LandingFooter() {
               <ul>
                 <li><Link href="/checker">Checker gratis</Link></li>
                 <li><Link href="/precios">Precios</Link></li>
-                <li><Link href="/demo">Demo</Link></li>
+                <li><a href="/demo">Demo</a></li>
                 <li><Link href="/registro">Crear cuenta</Link></li>
                 <li><Link href="/ingresar">Ingresar</Link></li>
               </ul>

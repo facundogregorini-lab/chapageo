@@ -1,19 +1,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { requireCtx } from "@/lib/auth";
 import { BillingError, cancelSubscription, startCheckout } from "@/lib/billing";
+import { requestOrigin } from "@/lib/origin";
 
 export type CheckoutState = { error?: string } | undefined;
-
-async function requestOrigin(): Promise<string | undefined> {
-  const h = await headers();
-  const host = h.get("x-forwarded-host") ?? h.get("host");
-  if (!host) return undefined;
-  return `${h.get("x-forwarded-proto") ?? "https"}://${host}`;
-}
 
 export async function checkoutAction(_: CheckoutState, form: FormData): Promise<CheckoutState> {
   const ctx = await requireCtx();

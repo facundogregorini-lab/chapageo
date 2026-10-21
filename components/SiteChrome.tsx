@@ -16,9 +16,9 @@ export function SiteHeader() {
           <Link href="/ingresar" className="hidden text-sm font-semibold text-mute hover:text-ink sm:block">
             Ingresar
           </Link>
-          <Link href="/demo" className="btn-primary btn-sm">
+          <a href="/demo" className="btn-primary btn-sm">
             Ver la demo
-          </Link>
+          </a>
         </div>
       </div>
     </header>
@@ -40,7 +40,7 @@ export function SiteFooter() {
           <ul className="space-y-1.5 text-mute">
             <li><Link href="/checker" className="hover:text-ink">Checker gratis</Link></li>
             <li><Link href="/precios" className="hover:text-ink">Precios</Link></li>
-            <li><Link href="/demo" className="hover:text-ink">Demo</Link></li>
+            <li><a href="/demo" className="hover:text-ink">Demo</a></li>
             <li><Link href="/registro" className="hover:text-ink">Crear cuenta</Link></li>
           </ul>
         </div>
