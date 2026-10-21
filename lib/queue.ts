@@ -347,6 +347,17 @@ function backoffMs(attempt: number) {
  * si la fila fue recuperada por otro, el resultado se descarta (no hay duplicados).
  * Devuelve el estado final de la fila o null si se perdió el lease.
  */
+/** El registro crudo se guarda si es razonable (≤ 400 KB); si no, se omite antes que cortarlo. */
+function rawJson(raw: unknown): string | null {
+  if (raw === undefined || raw === null) return null;
+  try {
+    const s = JSON.stringify(raw);
+    return s.length <= 400_000 ? s : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function finishJob(job: ClaimedJob, result: CollectResult): Promise<JobStatus | null> {
   const ts = now();
   const conditions = JSON.stringify({
@@ -371,12 +382,12 @@ export async function finishJob(job: ClaimedJob, result: CollectResult): Promise
     const r = await run(
       `UPDATE responses SET status = ?, answer = ?, sources = ?, mentions = ?, other_brands = ?, brand_mentioned = ?, brand_position = ?, own_cited = ?,
          sentiment = ?, sentiment_score = ?, model = ?, cost_usd = ?, latency_ms = ?, executed_at = ?, screenshot_id = ?, error = ?, error_code = ?,
-         observed_country = ?, location_verification = ?, search_mode = ?, session_type = ?, conditions = ?, lease_id = NULL, next_attempt_at = NULL
+         observed_country = ?, location_verification = ?, search_mode = ?, session_type = ?, conditions = ?, raw_json = ?, lease_id = NULL, next_attempt_at = NULL
        WHERE id = ? AND lease_id = ? AND status = 'running'`,
       [
         result.status, text, JSON.stringify(result.citations), JSON.stringify(a.mentions), JSON.stringify(a.otherBrands), a.brandMentioned ? 1 : 0,
         a.brandPosition, a.ownCited ? 1 : 0, a.sentiment?.label ?? null, a.sentiment?.score ?? null, result.modelIfVisible, result.costUsd ?? 0,
-        result.duration, result.collectedAt, result.screenshotReference, result.error?.message ?? null, result.error?.code ?? null, ...common, job.id, job.lease_id,
+        result.duration, result.collectedAt, result.screenshotReference, result.error?.message ?? null, result.error?.code ?? null, ...common, rawJson(result.raw), job.id, job.lease_id,
       ],
     );
     if (!r.rowsAffected) return null;

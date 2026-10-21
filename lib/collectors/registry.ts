@@ -79,7 +79,7 @@ export const COLLECTORS: Record<CollectorId, CollectorDef> = {
     engine: "chatgpt",
     method: "third_party_capture",
     label: "ChatGPT · vía Bright Data",
-    envKey: "BRIGHTDATA_API_TOKEN",
+    envKey: "BRIGHTDATA_API_KEY",
     description: "Bright Data abre chatgpt.com, hace la pregunta y nos devuelve la respuesta visible con sus fuentes. No necesita worker.",
   },
   brightdata_gemini: {
@@ -87,7 +87,7 @@ export const COLLECTORS: Record<CollectorId, CollectorDef> = {
     engine: "gemini",
     method: "third_party_capture",
     label: "Gemini · vía Bright Data",
-    envKey: "BRIGHTDATA_API_TOKEN",
+    envKey: "BRIGHTDATA_API_KEY",
     description: "Bright Data abre Gemini, hace la pregunta y nos devuelve la respuesta visible con sus fuentes. No necesita worker.",
   },
   brightdata_perplexity: {
@@ -95,7 +95,7 @@ export const COLLECTORS: Record<CollectorId, CollectorDef> = {
     engine: "perplexity",
     method: "third_party_capture",
     label: "Perplexity · vía Bright Data",
-    envKey: "BRIGHTDATA_API_TOKEN",
+    envKey: "BRIGHTDATA_API_KEY",
     description: "Bright Data abre Perplexity, hace la pregunta y nos devuelve la respuesta visible con sus fuentes. No necesita worker.",
   },
   demo_chatgpt: {

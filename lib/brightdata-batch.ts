@@ -93,7 +93,7 @@ export async function dispatchRun(runId: string, opts: Opts = {}): Promise<numbe
       const snap = await triggerSnapshot(
         f,
         cfg,
-        jobs.map((j) => buildInput(cfg, j.prompt_text, j.country ?? "AR")),
+        jobs.map((j, i) => buildInput(cfg, j.prompt_text, j.country ?? "AR", i + 1)),
       );
       await run("UPDATE responses SET lease_id = ? WHERE lease_id = ? AND status = 'running'", [`bd:${snap}`, lease]);
       sent += jobs.length;
@@ -158,6 +158,10 @@ export async function collectRun(runId: string, opts: Opts = {}): Promise<number
       const status = await snapshotStatus(f, cfg, snap);
       if (status === "ready") {
         const records = await downloadSnapshot(f, cfg, snap);
+        if (!records) {
+          await run("UPDATE responses SET heartbeat_at = ? WHERE lease_id = ? AND status = 'running'", [now(), lease]);
+          continue;
+        }
         const { pairs, unmatched } = matchRecords(jobs, records);
         for (const [job, rec] of pairs) {
           const res = recordToResult(rec, id, cfg, startedMs, job.country ?? "AR");

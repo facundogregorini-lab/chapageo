@@ -5,7 +5,7 @@ import { before, beforeEach, test } from "node:test";
 import { setupAgency, useTempDb } from "./helpers";
 
 useTempDb();
-process.env.BRIGHTDATA_API_TOKEN = "tok-test";
+process.env.BRIGHTDATA_API_KEY = "tok-test";
 let q: typeof import("../lib/queue");
 let bd: typeof import("../lib/collectors/brightdata");
 let batch: typeof import("../lib/brightdata-batch");
@@ -22,29 +22,26 @@ before(async () => {
 });
 
 type Call = { method: string; url: string; headers: Record<string, string>; body: unknown };
+type Inp = { url: string; prompt: string; country?: string };
 
-/** API falsa: guarda las entradas de cada snapshot y responde según `state`. */
-function fakeApi(opts: { triggerStatus?: number; record?: (input: { prompt: string; country: string }, i: number) => Record<string, unknown> } = {}) {
+/**
+ * API falsa: guarda las entradas de cada snapshot y responde según `status`.
+ * `/scrape` contesta 200 con los registros, o 202 + snapshot si `scrape: "async"`.
+ * `fail` permite forzar códigos de error por endpoint (se consumen en orden).
+ */
+function fakeApi(
+  opts: {
+    triggerStatus?: number;
+    scrape?: "sync" | "async";
+    fail?: Partial<Record<"scrape" | "trigger" | "progress" | "snapshot", number[]>>;
+    record?: (input: Inp, i: number) => Record<string, unknown>;
+  } = {},
+) {
   const calls: Call[] = [];
-  const snaps = new Map<string, { inputs: { url: string; prompt: string; country: string }[]; status: string }>();
+  const snaps = new Map<string, { inputs: Inp[]; status: string }>();
   let n = 0;
-  const f: import("../lib/collectors/brightdata").FetchLike = async (url, init = {}) => {
-    const body = init.body ? JSON.parse(init.body) : undefined;
-    calls.push({ method: init.method ?? "GET", url, headers: init.headers ?? {}, body });
-    const ok = (data: unknown, status = 200) => ({ ok: status < 400, status, text: async () => (typeof data === "string" ? data : JSON.stringify(data)) });
-    const path = new URL(url).pathname;
-    if (path === "/datasets/v3/trigger") {
-      if (opts.triggerStatus) return ok("Unauthorized", opts.triggerStatus);
-      const id = `s_test${++n}`;
-      snaps.set(id, { inputs: body, status: "running" });
-      return ok({ snapshot_id: id });
-    }
-    const m = path.match(/^\/datasets\/v3\/(progress|snapshot)\/(.+)$/);
-    const snap = m ? snaps.get(decodeURIComponent(m[2])) : undefined;
-    if (!m || !snap) return ok({ error: "not found" }, 404);
-    if (m[1] === "progress") return ok({ status: snap.status });
-    // Bright Data no garantiza el orden: lo devolvemos invertido.
-    const recs = snap.inputs.map(
+  const recordsFor = (inputs: Inp[]) =>
+    inputs.map(
       (inp, i) =>
         opts.record?.(inp, i) ?? {
           url: inp.url,
@@ -52,12 +49,44 @@ function fakeApi(opts: { triggerStatus?: number; record?: (input: { prompt: stri
           country: inp.country,
           model: "gpt-5",
           web_search_triggered: true,
+          timestamp: "2026-10-21T12:00:00.000Z",
           answer_text: `Para «${inp.prompt}»: 1. Rival Uno 2. Marca Otra. Fuente: g2.`,
-          citations: [{ url: "https://www.g2.com/x?utm_source=chatgpt.com", title: "G2", domain: "g2.com" }],
+          citations: [{ url: "https://www.g2.com/x?utm_source=chatgpt.com", title: "G2", position: 1 }],
           links_attached: [{ url: "https://chatgpt.com/c/123", text: "propio" }, { url: "https://rivaluno.com/precios", text: "Rival" }],
         },
     );
-    return ok(recs.reverse());
+  const f: import("../lib/collectors/brightdata").FetchLike = async (url, init = {}) => {
+    const body = init.body ? JSON.parse(init.body) : undefined;
+    calls.push({ method: init.method ?? "GET", url, headers: init.headers ?? {}, body });
+    const ok = (data: unknown, status = 200) => ({
+      ok: status < 400,
+      status,
+      headers: { get: (h: string) => (h === "retry-after" && status === 202 ? "0" : null) },
+      text: async () => (typeof data === "string" ? data : JSON.stringify(data)),
+    });
+    const path = new URL(url).pathname;
+    const kind = path.split("/")[3] as "scrape" | "trigger" | "progress" | "snapshot";
+    const forced = opts.fail?.[kind]?.shift();
+    if (forced) return ok("error forzado", forced);
+    if (path === "/datasets/v3/scrape") {
+      if (opts.scrape !== "async") return ok(recordsFor(body.input));
+      const id = `s_test${++n}`;
+      snaps.set(id, { inputs: body.input, status: "running" });
+      return ok({ snapshot_id: id, message: "Request is taking longer than expected" }, 202);
+    }
+    if (path === "/datasets/v3/trigger") {
+      if (opts.triggerStatus) return ok("Unauthorized", opts.triggerStatus);
+      const id = `s_test${++n}`;
+      snaps.set(id, { inputs: body.input, status: "running" });
+      return ok({ snapshot_id: id });
+    }
+    const m = path.match(/^\/datasets\/v3\/(progress|snapshot)\/(.+)$/);
+    const snap = m ? snaps.get(decodeURIComponent(m[2])) : undefined;
+    if (!m || !snap) return ok({ error: "not found" }, 404);
+    if (m[1] === "progress") return ok({ status: snap.status });
+    if (snap.status !== "ready") return ok({ status: "building", message: "Snapshot is building" }, 202);
+    // Bright Data no garantiza el orden: lo devolvemos invertido.
+    return ok(recordsFor(snap.inputs).reverse());
   };
   return { f, calls, snaps };
 }
@@ -116,7 +145,7 @@ test("análisis sin worker: un solo envío por motor, resultados emparejados por
   assert.match(trig[0].url, /dataset_id=gd_m7aof0k82r803d5bjm/);
   assert.match(trig[0].url, /include_errors=true/);
   assert.equal(trig[0].headers.authorization, "Bearer tok-test");
-  const inputs = trig[0].body as { url: string; prompt: string; country: string }[];
+  const inputs = (trig[0].body as { input: Inp[] }).input;
   assert.equal(inputs.length, 10);
   assert.ok(inputs.every((i) => i.url === "https://chatgpt.com/" && i.country === "AR"));
 
@@ -203,7 +232,7 @@ test("emparejamiento: registros sin pregunta solo se asignan si no hay ambigüed
 });
 
 test("prueba de conexión: una consulta, deja el motor disponible y no se repite en 5 minutos", async () => {
-  const api = fakeApi();
+  const api = fakeApi({ scrape: "async" });
   const fast = { fetch: api.f, pollMs: 1, maxWaitMs: 2000 };
   // El snapshot pasa a listo en el segundo control de progreso.
   const orig = api.f;
@@ -218,22 +247,120 @@ test("prueba de conexión: una consulta, deja el motor disponible y no se repite
   const out = await probe.probeBrightData("brightdata_chatgpt", fast);
   assert.equal(out.ok, true, out.message);
   assert.equal(out.model, "gpt-5");
-  assert.equal(api.calls.filter((c) => c.url.includes("/trigger")).length, 1);
+  assert.equal(api.calls.filter((c) => c.url.includes("/scrape")).length, 1);
   const avail = (await q.collectorAvailability(false)).find((x) => x.id === "brightdata_chatgpt");
   assert.equal(avail?.selectable, true);
 
   const again = await probe.probeBrightData("brightdata_chatgpt", fast);
   assert.equal(again.ok, false);
-  assert.equal(api.calls.filter((c) => c.url.includes("/trigger")).length, 1, "no gastó otra consulta");
+  assert.equal(api.calls.filter((c) => c.url.includes("/scrape")).length, 1, "no gastó otra consulta");
 });
 
-test("sin token o sin id de dataset, el motor figura como no configurado con el motivo", async () => {
-  const env = { ...process.env, BRIGHTDATA_API_TOKEN: "" };
+test("sin key el motor figura como no configurado; los datasets salen del panel o de la variable", async () => {
+  const env = { ...process.env, BRIGHTDATA_API_KEY: "", BRIGHTDATA_API_TOKEN: "" };
   const c1 = bd.brightDataConfig("brightdata_chatgpt", env);
-  assert.ok("missing" in c1 && /BRIGHTDATA_API_TOKEN/.test(c1.missing));
+  assert.ok("missing" in c1 && /BRIGHTDATA_API_KEY/.test(c1.missing));
+  const c0 = bd.brightDataConfig("brightdata_chatgpt", { ...env, BRIGHTDATA_API_TOKEN: "viejo" });
+  assert.ok(!("missing" in c0) && c0.token === "viejo", "acepta el nombre anterior de la variable");
   const c2 = bd.brightDataConfig("brightdata_gemini", { ...process.env, BRIGHTDATA_DATASET_GEMINI: "" });
-  assert.ok("missing" in c2 && /BRIGHTDATA_DATASET_GEMINI/.test(c2.missing));
+  assert.ok(!("missing" in c2) && c2.datasetId === bd.GEMINI_DATASET_ID, "variable vacía = dataset del panel");
+  const c3 = bd.brightDataConfig("brightdata_gemini", { ...process.env, BRIGHTDATA_DATASET_GEMINI: "gd_otro" });
+  assert.ok(!("missing" in c3) && c3.datasetId === "gd_otro");
+  // Con la key cargada, Gemini usa el dataset del panel por defecto, pero no se elige hasta probarlo.
   const avail = (await q.collectorAvailability(false)).find((x) => x.id === "brightdata_gemini");
-  assert.equal(avail?.status, "not_configured");
+  assert.equal(avail?.status, "unverified");
   assert.equal(avail?.selectable, false);
+});
+
+test("cliente sincrónico: (proveedor, pregunta) → texto, fuentes, proveedor, fecha y registro crudo", async () => {
+  const api = fakeApi();
+  const a = await bd.queryBrightData("chatgpt", "mejor banco digital", { fetch: api.f });
+  assert.equal(a.provider, "chatgpt");
+  assert.equal(a.mode, "sync");
+  assert.equal(a.snapshotId, null);
+  assert.match(a.text, /Rival Uno/);
+  assert.deepEqual(a.citations.map((c) => c.url), ["https://www.g2.com/x", "https://rivaluno.com/precios"]);
+  assert.equal(a.timestamp, "2026-10-21T12:00:00.000Z");
+  assert.equal(a.model, "gpt-5");
+  assert.equal((a.raw as { prompt: string }).prompt, "mejor banco digital");
+  assert.equal(api.calls.length, 1);
+  const c = api.calls[0];
+  assert.equal(c.method, "POST");
+  assert.match(c.url, /\/datasets\/v3\/scrape\?dataset_id=gd_m7aof0k82r803d5bjm&notify=false&include_errors=true/);
+  assert.equal(c.headers.authorization, "Bearer tok-test");
+  assert.deepEqual(c.body, { input: [{ url: "https://chatgpt.com/", prompt: "mejor banco digital", country: "AR", web_search: false, additional_prompt: "" }] });
+});
+
+test("entradas de Gemini y Perplexity con el formato del panel y sus datasets", async () => {
+  const api = fakeApi({ record: (inp) => ({ prompt: inp.prompt, answer_text: "ok", links_attached: [{ url: "https://www.google.com/url?q=https://bna.com.ar/x&sa=U" }] }) });
+  const g = await bd.queryBrightData("gemini", "p", { fetch: api.f });
+  assert.match(api.calls[0].url, /dataset_id=gd_mbz66arm2mf9cu856y/);
+  assert.deepEqual(api.calls[0].body, { input: [{ url: "https://gemini.google.com/", prompt: "p", index: 1 }] });
+  assert.deepEqual(g.citations.map((c) => c.url), ["https://bna.com.ar/x"], "desarma el redirect de Google");
+  await bd.queryBrightData("perplexity", "p", { fetch: api.f });
+  assert.match(api.calls[1].url, /dataset_id=gd_m7dhdot1vw9a7gc1n/);
+  assert.deepEqual(api.calls[1].body, { input: [{ url: "https://www.perplexity.ai", prompt: "p" }] });
+});
+
+test("si el sincrónico no alcanza (202), sigue por el snapshot sin volver a pedir", async () => {
+  const api = fakeApi({ scrape: "async" });
+  let polls = 0;
+  const f: typeof api.f = async (url, init) => {
+    if (url.includes("/progress/") && ++polls >= 2) for (const s of api.snaps.values()) s.status = "ready";
+    return api.f(url, init);
+  };
+  const a = await bd.queryBrightData("chatgpt", "x", { fetch: f, pollMs: 1, maxWaitMs: 5000 });
+  assert.equal(a.mode, "async");
+  assert.equal(a.snapshotId, "s_test1");
+  assert.match(a.text, /«x»/);
+  assert.equal(api.calls.filter((c) => c.url.includes("/scrape")).length, 1);
+  assert.equal(api.calls.filter((c) => c.url.includes("/snapshot/")).length, 1);
+
+  // Si no termina a tiempo, error de timeout (transitorio) con el snapshot para retomarlo.
+  const slow = fakeApi({ scrape: "async" });
+  await assert.rejects(bd.queryBrightData("chatgpt", "x", { fetch: slow.f, pollMs: 1, maxWaitMs: 30 }), (e: InstanceType<typeof bd.BrightDataError>) => {
+    assert.equal(e.code, "timeout");
+    assert.equal(e.transient, true);
+    return true;
+  });
+});
+
+test("reintentos acotados: los GET se reintentan; los POST solo si Bright Data no los procesó", async () => {
+  const fast = { pollMs: 1, maxWaitMs: 5000, retryBaseMs: 1 };
+  // progress falla dos veces con 503: se reintenta y termina bien.
+  const a = fakeApi({ scrape: "async", fail: { progress: [503, 503] } });
+  for (const s of a.snaps.values()) s.status = "ready";
+  const f: typeof a.f = async (url, init) => {
+    const r = await a.f(url, init);
+    for (const s of a.snaps.values()) s.status = "ready";
+    return r;
+  };
+  assert.equal((await bd.queryBrightData("chatgpt", "x", { ...fast, fetch: f })).mode, "async");
+  assert.equal(a.calls.filter((c) => c.url.includes("/progress/")).length, 3);
+
+  // 500 en /scrape: pudo haberse procesado (y cobrado), así que no se repite.
+  const b = fakeApi({ fail: { scrape: [500] } });
+  await assert.rejects(bd.queryBrightData("chatgpt", "x", { ...fast, fetch: b.f }));
+  assert.equal(b.calls.length, 1);
+
+  // 429 en /scrape: no se procesó; un reintento y listo.
+  const c = fakeApi({ fail: { scrape: [429] } });
+  assert.equal((await bd.queryBrightData("chatgpt", "x", { ...fast, fetch: c.f })).mode, "sync");
+  assert.equal(c.calls.length, 2);
+
+  // 429 persistente: como máximo dos pedidos.
+  const d = fakeApi({ fail: { scrape: [429, 429, 429] } });
+  await assert.rejects(bd.queryBrightData("chatgpt", "x", { ...fast, fetch: d.f }), (e: InstanceType<typeof bd.BrightDataError>) => e.status === 429);
+  assert.equal(d.calls.length, 2);
+
+  // 401: key inválida, sin reintento y no transitorio.
+  const e = fakeApi({ fail: { scrape: [401] } });
+  await assert.rejects(bd.queryBrightData("chatgpt", "x", { ...fast, fetch: e.f }), (err: unknown) => bd.errorFrom(err).code === "sin_credenciales" && !bd.errorFrom(err).transient);
+  assert.equal(e.calls.length, 1);
+});
+
+test("timeout por pedido: si Bright Data no contesta, corta con error de timeout", async () => {
+  const hang: import("../lib/collectors/brightdata").FetchLike = (_url, init) =>
+    new Promise((_, reject) => init?.signal?.addEventListener("abort", () => reject(init.signal!.reason)));
+  await assert.rejects(bd.queryBrightData("chatgpt", "x", { fetch: hang, timeoutMs: 20 }), (e: InstanceType<typeof bd.BrightDataError>) => e.code === "timeout");
 });

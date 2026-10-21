@@ -247,6 +247,12 @@ CREATE TABLE IF NOT EXISTS collector_status (
 CREATE UNIQUE INDEX IF NOT EXISTS idx_users_google_sub ON users(google_sub);
 `,
   },
+  {
+    id: "004_respuesta_cruda",
+    // Registro crudo del proveedor (Bright Data) para auditar cómo se leyó cada respuesta.
+    sql: `ALTER TABLE responses ADD COLUMN raw_json TEXT;
+`,
+  },
 ];
 
 function statements(sql: string): string[] {

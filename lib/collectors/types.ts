@@ -79,6 +79,8 @@ export type CollectResult = {
   error: CollectError | null;
   /** Costo estimado en USD (APIs y proveedores); 0 si no aplica. */
   costUsd?: number;
+  /** Respuesta cruda del proveedor (p. ej. el registro de Bright Data), para auditar. */
+  raw?: unknown;
 };
 
 /** Servicios que el worker le presta a un conector. */
