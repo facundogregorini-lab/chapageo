@@ -7,7 +7,7 @@ import type { EngineId } from "../config";
 /**
  * - web_capture: se abrió la interfaz web del asistente y se leyó la respuesta que vería una persona.
  * - official_api: respuesta de la API oficial del modelo. Es otra medición: no reemplaza a la captura.
- * - third_party_capture: reservado para proveedores externos de captura (no implementado).
+ * - third_party_capture: un proveedor externo (Bright Data) abre la interfaz web del asistente y nos entrega la respuesta.
  * - demo: datos simulados, solo para el espacio de demostración.
  */
 export type CollectionMethod = "web_capture" | "official_api" | "third_party_capture" | "demo";
@@ -15,9 +15,9 @@ export type CollectionMethod = "web_capture" | "official_api" | "third_party_cap
 export type CollectStatus = "completed" | "partial" | "failed" | "requires_intervention";
 
 /** Cómo sabemos desde dónde se ejecutó la consulta. Nunca se infiere del idioma ni del prompt. */
-export type LocationVerification = "verificada" | "declarada_por_operador" | "no_verificada" | "no_aplica";
+export type LocationVerification = "verificada" | "declarada_por_operador" | "declarada_por_proveedor" | "no_verificada" | "no_aplica";
 
-export type SessionType = "autenticada" | "publica" | "api" | "simulada";
+export type SessionType = "autenticada" | "publica" | "api" | "simulada" | "proveedor";
 
 export type Citation = { url: string; title?: string; domain: string };
 
@@ -77,8 +77,10 @@ export type CollectResult = {
   /** Duración en milisegundos. */
   duration: number;
   error: CollectError | null;
-  /** Costo estimado en USD (solo APIs); 0 si no aplica. */
+  /** Costo estimado en USD (APIs y proveedores); 0 si no aplica. */
   costUsd?: number;
+  /** Respuesta cruda del proveedor (p. ej. el registro de Bright Data), para auditar. */
+  raw?: unknown;
 };
 
 /** Servicios que el worker le presta a un conector. */

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { logoutAction } from "@/app/actions";
 import { NavLink } from "@/components/NavLink";
+import { RunSync } from "@/components/RunSync";
 import { Logo } from "@/components/ui";
 import { workspaceBrands } from "@/lib/access";
 import { requireCtx } from "@/lib/auth";
@@ -61,6 +62,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           </div>
         ) : null}
         <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6">{children}</main>
+        <RunSync />
       </div>
     </div>
   );
