@@ -96,7 +96,7 @@ export function NewAnalysisForm({
         </div>
       </div>
       {!promptsOk ? <p className="rounded-xl bg-sol-50 px-3 py-2 text-sm text-[#6b4700]">Necesitás entre {minPrompts} y {maxPrompts} preguntas aprobadas (hay {approved}).</p> : null}
-      {!anyWorkerOnline ? (
+      {!anyWorkerOnline && selected.some((id) => !id.startsWith("brightdata_")) ? (
         <p className="rounded-xl bg-paper px-3 py-2 text-xs text-mute">
           El worker no está enviando señal en este momento. El análisis queda en cola y avanza cuando el worker vuelva; podés cerrar la pestaña.
         </p>

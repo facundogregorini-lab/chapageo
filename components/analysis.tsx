@@ -23,6 +23,7 @@ export function MethodBadge({ method }: { method: string }) {
   if (method === "demo") return <Badge tone="sol">Demo · simulado</Badge>;
   if (method === "official_api") return <Badge tone="neutral">API oficial</Badge>;
   if (method === "web_capture") return <Badge tone="celeste">Captura web</Badge>;
+  if (method === "third_party_capture") return <Badge tone="celeste">Captura web · Bright Data</Badge>;
   return <Badge>{method}</Badge>;
 }
 
@@ -37,10 +38,11 @@ export function RatioText({ r, unit = "respuestas válidas" }: { r: Ratio; unit?
 export const LOCATION_LABEL: Record<string, string> = {
   verificada: "verificada",
   declarada_por_operador: "declarada por el operador (no verificada)",
+  declarada_por_proveedor: "país pedido al proveedor (no verificado por nosotros)",
   no_verificada: "desconocida / no verificada",
   no_aplica: "no aplica (API o demo)",
 };
-const SESSION_LABEL: Record<string, string> = { autenticada: "sesión iniciada", publica: "sin sesión (pública)", api: "API", simulada: "simulada" };
+const SESSION_LABEL: Record<string, string> = { autenticada: "sesión iniciada", publica: "sin sesión (pública)", api: "API", simulada: "simulada", proveedor: "sesión del proveedor (Bright Data)" };
 const SEARCH_LABEL: Record<string, string> = {
   busqueda_web_observada: "búsqueda web observada",
   sin_busqueda_observada: "sin búsqueda observada",

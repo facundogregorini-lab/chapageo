@@ -9,6 +9,7 @@
 
 import { createHash, randomBytes } from "node:crypto";
 import { analyzeAnswer } from "./analyze";
+import { brightDataConfig, isBrightDataId } from "./collectors/brightdata";
 import { COLLECTORS, isCollectorId, type CollectorId } from "./collectors/registry";
 import type { CollectResult } from "./collectors/types";
 import { all, db, id, now, one, parseJson, run } from "./db";
@@ -74,6 +75,22 @@ export async function collectorAvailability(isDemo: boolean): Promise<CollectorA
         return { id: c.id, label: c.label, method: c.method, status: "available" as const, reason: null, verifiedAt: null, workerOnline: true, selectable: true };
       }
       const s = statuses.find((x) => x.collector === c.id);
+      if (c.method === "third_party_capture" && isBrightDataId(c.id)) {
+        // Bright Data corre desde la web: depende de la configuración de este servidor, no de un worker.
+        const cfg = brightDataConfig(c.id);
+        const status = ("missing" in cfg ? "not_configured" : (s?.status ?? "unverified")) as CollectorAvailability["status"];
+        return {
+          id: c.id,
+          label: c.label,
+          method: c.method,
+          status,
+          reason:
+            "missing" in cfg ? cfg.missing : status === "unverified" ? "Falta la prueba de conexión: Ajustes → Probar Bright Data." : (s?.reason ?? null),
+          verifiedAt: s?.verified_at ?? null,
+          workerOnline: true,
+          selectable: status === "available",
+        };
+      }
       const status = (s?.status ?? (known.has(c.id) ? "unverified" : "not_configured")) as CollectorAvailability["status"];
       return {
         id: c.id,
@@ -262,14 +279,14 @@ export async function recoverStaleJobs(staleMs = LIMITS.staleJobMs): Promise<str
   const requeued = await c.execute({
     sql: `UPDATE responses SET status = 'pending', lease_id = NULL, worker_id = NULL, error_code = 'interrumpido',
             error = 'La ejecución se interrumpió (worker sin señal); se reintenta.', next_attempt_at = ?
-          WHERE status = 'running' AND COALESCE(heartbeat_at, claimed_at) < ? AND attempts < max_attempts
+          WHERE status = 'running' AND COALESCE(heartbeat_at, claimed_at) < ? AND (lease_id IS NULL OR lease_id NOT LIKE 'bd:%') AND attempts < max_attempts
           RETURNING run_id`,
     args: [now(), before],
   });
   const failed = await c.execute({
     sql: `UPDATE responses SET status = 'failed', lease_id = NULL, error_code = 'interrumpido',
             error = 'La ejecución se interrumpió y agotó sus intentos.', executed_at = ?
-          WHERE status = 'running' AND COALESCE(heartbeat_at, claimed_at) < ? AND attempts >= max_attempts
+          WHERE status = 'running' AND COALESCE(heartbeat_at, claimed_at) < ? AND (lease_id IS NULL OR lease_id NOT LIKE 'bd:%') AND attempts >= max_attempts
           RETURNING run_id`,
     args: [now(), before],
   });

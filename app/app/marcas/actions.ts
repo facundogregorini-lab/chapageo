@@ -8,7 +8,9 @@ import { brandForCtx, deleteBrandCascade, workspaceBrands } from "@/lib/access";
 import { cleanDomain } from "@/lib/analyze";
 import { auditSite } from "@/lib/audit";
 import { requireCtx } from "@/lib/auth";
+import { dispatchRun } from "@/lib/brightdata-batch";
 import { saveAudit } from "@/lib/checker";
+import { isBrightDataId } from "@/lib/collectors/brightdata";
 import { db, id, now, one, run, token } from "@/lib/db";
 import { logEvent } from "@/lib/events";
 import { LIMITS } from "@/lib/limits";
@@ -221,6 +223,8 @@ export async function startAnalysisAction(brandId: string, _: StartState, form: 
     });
     runId = r.id;
     await logEvent("analysis_created", { brandId, runId, total: r.total });
+    // Bright Data trabaja por su cuenta: lo mandamos ya, así avanza aunque se cierre la pestaña.
+    if (r.collectors.some(isBrightDataId)) await dispatchRun(r.id).catch((e) => console.error("brightdata dispatch", e));
   } catch (e) {
     if (e instanceof UserError) return { error: e.message };
     console.error("createAnalysis", e);

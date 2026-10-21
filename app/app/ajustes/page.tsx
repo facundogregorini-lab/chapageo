@@ -1,6 +1,8 @@
+import { BrightDataProbe } from "@/components/BrightDataProbe";
 import { Badge } from "@/components/ui";
 import { prospectsThisMonth, workspaceBrands } from "@/lib/access";
 import { requireCtx } from "@/lib/auth";
+import { isBrightDataId } from "@/lib/collectors/brightdata";
 import { isEphemeralDb } from "@/lib/db";
 import { LIMITS } from "@/lib/limits";
 import { helperAvailable } from "@/lib/llm";
@@ -8,6 +10,14 @@ import { collectorAvailability } from "@/lib/queue";
 import { updateWorkspaceAction } from "./actions";
 
 export const metadata = { title: "Ajustes" };
+
+const COLLECTOR_STATUS: Record<string, string> = {
+  available: "disponible",
+  unverified: "sin verificar",
+  requires_intervention: "requiere intervención",
+  unavailable: "no disponible",
+  not_configured: "no configurado",
+};
 
 export default async function Page() {
   const ctx = await requireCtx();
@@ -59,9 +69,13 @@ export default async function Page() {
             <h2 className="font-bold">Motores de recolección</h2>
             <ul className="mt-3 space-y-2 text-sm">
               {avail.map((a) => (
-                <li key={a.id} className="flex items-center justify-between gap-3">
-                  <span>{a.label}</span>
-                  <Badge tone={a.selectable ? "ok" : a.status === "requires_intervention" ? "sol" : "neutral"} title={a.reason ?? undefined}>{a.status}</Badge>
+                <li key={a.id} className="space-y-1">
+                  <div className="flex items-center justify-between gap-3">
+                    <span>{a.label}</span>
+                    <Badge tone={a.selectable ? "ok" : a.status === "requires_intervention" ? "sol" : "neutral"} title={a.reason ?? undefined}>{COLLECTOR_STATUS[a.status] ?? a.status}</Badge>
+                  </div>
+                  {a.reason && !a.selectable ? <p className="text-xs text-mute">{a.reason}</p> : null}
+                  {isBrightDataId(a.id) && a.status !== "not_configured" && ctx.isAdmin ? <BrightDataProbe collector={a.id} label="conexión" /> : null}
                 </li>
               ))}
               <li className="flex items-center justify-between">
@@ -74,7 +88,7 @@ export default async function Page() {
               </li>
             </ul>
             <p className="mt-3 text-xs text-mute">
-              Los motores los opera el equipo de ChapaGEO en el worker. La agencia no necesita claves de API, cuentas ni extensiones.
+              Los motores los opera el equipo de ChapaGEO (Bright Data o el worker). La agencia no necesita claves de API, cuentas ni extensiones.
             </p>
           </div>
         </div>
