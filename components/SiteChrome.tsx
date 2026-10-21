@@ -50,6 +50,8 @@ export function SiteFooter() {
             <li><Link href="/contacto" className="hover:text-ink">Contacto</Link></li>
             <li><Link href="/#metodologia" className="hover:text-ink">Metodología</Link></li>
             <li><Link href="/#faq" className="hover:text-ink">Preguntas frecuentes</Link></li>
+            <li><Link href="/privacidad" className="hover:text-ink">Privacidad</Link></li>
+            <li><Link href="/terminos" className="hover:text-ink">Términos</Link></li>
           </ul>
         </div>
       </div>
