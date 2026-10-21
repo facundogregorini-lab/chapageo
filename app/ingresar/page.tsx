@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { AuthShell } from "@/components/AuthShell";
 import { GoogleButton, LoginForm } from "@/components/AuthForms";
 import { googleEnabled } from "@/lib/google-auth";
@@ -21,7 +20,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ n
       {googleEnabled() ? <GoogleButton next={next} label="Continuar con Google" /> : null}
       <LoginForm next={next} />
       <div className="mt-6 border-t border-line pt-4 text-center text-sm">
-        <Link href="/demo" className="font-semibold text-celeste-700">Entrar a la demo sin cuenta →</Link>
+        <a href="/demo" className="font-semibold text-celeste-700">Entrar a la demo sin cuenta →</a>
       </div>
     </AuthShell>
   );

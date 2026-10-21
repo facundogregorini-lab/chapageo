@@ -1,10 +1,12 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { checkPassword, endSession, hashPassword, startSession } from "@/lib/auth";
+import { checkPassword, ctxForUser, endSession, hashPassword, startSession } from "@/lib/auth";
+import { BillingError, startCheckout } from "@/lib/billing";
 import { isSubscriptionPlan } from "@/lib/config";
 import { id, now, one, run } from "@/lib/db";
 import { logEvent } from "@/lib/events";
+import { requestOrigin } from "@/lib/origin";
 
 export type FormState = { error?: string; ok?: boolean } | undefined;
 
@@ -44,8 +46,18 @@ export async function registerAction(_: FormState, form: FormData): Promise<Form
   const plan = str(form, "plan");
   await logEvent("signup", { email, company, plan: plan || null });
   await startSession(userId);
-  // Si vino eligiendo un plan pago, sigue directo al checkout; si no, arranca con el plan de prueba.
-  redirect(isSubscriptionPlan(plan) ? `/app/plan?plan=${plan}` : "/app/marcas/nueva");
+  // Si vino eligiendo un plan pago, sigue directo al checkout de Mercado Pago; si no, arranca con el plan de prueba.
+  if (isSubscriptionPlan(plan)) {
+    let url = `/app/plan?plan=${plan}`;
+    try {
+      url = await startCheckout((await ctxForUser(userId))!, plan, await requestOrigin());
+    } catch (e) {
+      if (e instanceof BillingError) url += `&error=${encodeURIComponent(e.message)}`;
+      else console.error("checkout", e);
+    }
+    redirect(url);
+  }
+  redirect("/app/marcas/nueva");
 }
 
 export async function logoutAction() {

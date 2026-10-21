@@ -103,9 +103,9 @@ export default function Home() {
             </form>
             <div className="lx-micro lx-mono">Sin registro · Resultado en menos de un minuto · 5 preguntas reales de tu rubro</div>
             <div className="lx-hero-links">
-              <Link href="/demo" className="lx-brand-link">
+              <a href="/demo" className="lx-brand-link">
                 Ver el panel con datos de ejemplo <span aria-hidden>→</span>
-              </Link>
+              </a>
               <Link href="/precios" className="lx-plain-link">
                 Diagnóstico 48 h por US${PLANS.diagnostico.priceUsd}
               </Link>
@@ -336,9 +336,9 @@ export default function Home() {
                 <Link href="/contacto?oferta=diagnostico" className="lx-btn lx-btn-primary lx-btn-lg">
                   Pedir el diagnóstico
                 </Link>
-                <Link href="/demo" className="lx-btn lx-btn-ghost lx-btn-lg">
+                <a href="/demo" className="lx-btn lx-btn-ghost lx-btn-lg">
                   Ver la demo →
-                </Link>
+                </a>
               </div>
             </div>
             <div className="lx-card lx-checker" data-spot data-rv>

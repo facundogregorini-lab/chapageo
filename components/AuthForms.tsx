@@ -48,7 +48,7 @@ export function LoginForm({ next }: { next?: string }) {
 
 export function RegisterForm({ plan, planName }: { plan?: string; planName?: string }) {
   const [state, action, pending] = useActionState(registerAction, undefined);
-  const next = plan ? `/app/plan?plan=${plan}` : undefined;
+  const next = plan ? `/app/plan/checkout?plan=${plan}` : undefined;
   return (
     <form action={action} className="space-y-4">
       <input type="hidden" name="plan" value={plan ?? ""} />
@@ -74,7 +74,7 @@ export function RegisterForm({ plan, planName }: { plan?: string; planName?: str
       <button className="btn-primary w-full" disabled={pending}>{pending ? "Creando…" : planName ? "Crear cuenta y pagar" : "Crear cuenta gratis"}</button>
       <p className="text-center text-xs text-mute">
         {planName
-          ? `Después elegís cómo pagar el plan ${planName} con Mercado Pago. Se cancela cuando quieras.`
+          ? `Al crear la cuenta te llevamos a Mercado Pago para pagar el plan ${planName}. Se cancela cuando quieras.`
           : "Plan de prueba: 1 marca, 10 preguntas y 2 motores. Sin tarjeta."}
       </p>
       <p className="text-center text-xs text-mute">
